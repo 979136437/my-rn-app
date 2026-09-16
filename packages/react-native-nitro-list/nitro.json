@@ -1,0 +1,14 @@
+{
+  "cxxNamespace": ["nitrolist"],
+  "ios": { "iosModuleName": "NitroList" },
+  "android": { "androidNamespace": ["nitrolist"], "androidCxxLibName": "NitroList" },
+  "autolinking": {
+    "NitroListController": {
+      "android": {
+        "language": "kotlin",
+        "implementationClassName": "HybridNitroListControllerRegistration"
+      }
+    }
+  },
+  "ignorePaths": ["node_modules"]
+}
