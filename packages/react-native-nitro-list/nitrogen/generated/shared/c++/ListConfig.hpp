@@ -47,10 +47,24 @@ namespace margelo::nitro::nitrolist {
     bool refreshEnabled     SWIFT_PRIVATE;
     double refreshHeaderHeight     SWIFT_PRIVATE;
     double refreshThreshold     SWIFT_PRIVATE;
+    double paddingTop     SWIFT_PRIVATE;
+    double paddingRight     SWIFT_PRIVATE;
+    double paddingBottom     SWIFT_PRIVATE;
+    double paddingLeft     SWIFT_PRIVATE;
+    bool endReachedEnabled     SWIFT_PRIVATE;
+    double endReachedThreshold     SWIFT_PRIVATE;
+    double endReachedEpoch     SWIFT_PRIVATE;
+    bool scrollEventsEnabled     SWIFT_PRIVATE;
+    double scrollEventThrottle     SWIFT_PRIVATE;
+    bool viewabilityEnabled     SWIFT_PRIVATE;
+    double itemVisiblePercentThreshold     SWIFT_PRIVATE;
+    double minimumViewTime     SWIFT_PRIVATE;
+    bool waitForInteraction     SWIFT_PRIVATE;
+    double viewabilityEpoch     SWIFT_PRIVATE;
 
   public:
     ListConfig() = default;
-    explicit ListConfig(ListLayout layout, double numColumns, double gap, double estimatedItemSize, bool refreshEnabled, double refreshHeaderHeight, double refreshThreshold): layout(layout), numColumns(numColumns), gap(gap), estimatedItemSize(estimatedItemSize), refreshEnabled(refreshEnabled), refreshHeaderHeight(refreshHeaderHeight), refreshThreshold(refreshThreshold) {}
+    explicit ListConfig(ListLayout layout, double numColumns, double gap, double estimatedItemSize, bool refreshEnabled, double refreshHeaderHeight, double refreshThreshold, double paddingTop, double paddingRight, double paddingBottom, double paddingLeft, bool endReachedEnabled, double endReachedThreshold, double endReachedEpoch, bool scrollEventsEnabled, double scrollEventThrottle, bool viewabilityEnabled, double itemVisiblePercentThreshold, double minimumViewTime, bool waitForInteraction, double viewabilityEpoch): layout(layout), numColumns(numColumns), gap(gap), estimatedItemSize(estimatedItemSize), refreshEnabled(refreshEnabled), refreshHeaderHeight(refreshHeaderHeight), refreshThreshold(refreshThreshold), paddingTop(paddingTop), paddingRight(paddingRight), paddingBottom(paddingBottom), paddingLeft(paddingLeft), endReachedEnabled(endReachedEnabled), endReachedThreshold(endReachedThreshold), endReachedEpoch(endReachedEpoch), scrollEventsEnabled(scrollEventsEnabled), scrollEventThrottle(scrollEventThrottle), viewabilityEnabled(viewabilityEnabled), itemVisiblePercentThreshold(itemVisiblePercentThreshold), minimumViewTime(minimumViewTime), waitForInteraction(waitForInteraction), viewabilityEpoch(viewabilityEpoch) {}
 
   public:
     friend bool operator==(const ListConfig& lhs, const ListConfig& rhs) = default;
@@ -72,7 +86,21 @@ namespace margelo::nitro {
         JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "estimatedItemSize"))),
         JSIConverter<bool>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "refreshEnabled"))),
         JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "refreshHeaderHeight"))),
-        JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "refreshThreshold")))
+        JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "refreshThreshold"))),
+        JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "paddingTop"))),
+        JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "paddingRight"))),
+        JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "paddingBottom"))),
+        JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "paddingLeft"))),
+        JSIConverter<bool>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "endReachedEnabled"))),
+        JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "endReachedThreshold"))),
+        JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "endReachedEpoch"))),
+        JSIConverter<bool>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "scrollEventsEnabled"))),
+        JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "scrollEventThrottle"))),
+        JSIConverter<bool>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "viewabilityEnabled"))),
+        JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "itemVisiblePercentThreshold"))),
+        JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "minimumViewTime"))),
+        JSIConverter<bool>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "waitForInteraction"))),
+        JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "viewabilityEpoch")))
       );
     }
     static inline jsi::Value toJSI(jsi::Runtime& runtime, const margelo::nitro::nitrolist::ListConfig& arg) {
@@ -84,6 +112,20 @@ namespace margelo::nitro {
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "refreshEnabled"), JSIConverter<bool>::toJSI(runtime, arg.refreshEnabled));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "refreshHeaderHeight"), JSIConverter<double>::toJSI(runtime, arg.refreshHeaderHeight));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "refreshThreshold"), JSIConverter<double>::toJSI(runtime, arg.refreshThreshold));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "paddingTop"), JSIConverter<double>::toJSI(runtime, arg.paddingTop));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "paddingRight"), JSIConverter<double>::toJSI(runtime, arg.paddingRight));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "paddingBottom"), JSIConverter<double>::toJSI(runtime, arg.paddingBottom));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "paddingLeft"), JSIConverter<double>::toJSI(runtime, arg.paddingLeft));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "endReachedEnabled"), JSIConverter<bool>::toJSI(runtime, arg.endReachedEnabled));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "endReachedThreshold"), JSIConverter<double>::toJSI(runtime, arg.endReachedThreshold));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "endReachedEpoch"), JSIConverter<double>::toJSI(runtime, arg.endReachedEpoch));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "scrollEventsEnabled"), JSIConverter<bool>::toJSI(runtime, arg.scrollEventsEnabled));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "scrollEventThrottle"), JSIConverter<double>::toJSI(runtime, arg.scrollEventThrottle));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "viewabilityEnabled"), JSIConverter<bool>::toJSI(runtime, arg.viewabilityEnabled));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "itemVisiblePercentThreshold"), JSIConverter<double>::toJSI(runtime, arg.itemVisiblePercentThreshold));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "minimumViewTime"), JSIConverter<double>::toJSI(runtime, arg.minimumViewTime));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "waitForInteraction"), JSIConverter<bool>::toJSI(runtime, arg.waitForInteraction));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "viewabilityEpoch"), JSIConverter<double>::toJSI(runtime, arg.viewabilityEpoch));
       return obj;
     }
     static inline bool canConvert(jsi::Runtime& runtime, const jsi::Value& value) {
@@ -101,6 +143,20 @@ namespace margelo::nitro {
       if (!JSIConverter<bool>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "refreshEnabled")))) return false;
       if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "refreshHeaderHeight")))) return false;
       if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "refreshThreshold")))) return false;
+      if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "paddingTop")))) return false;
+      if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "paddingRight")))) return false;
+      if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "paddingBottom")))) return false;
+      if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "paddingLeft")))) return false;
+      if (!JSIConverter<bool>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "endReachedEnabled")))) return false;
+      if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "endReachedThreshold")))) return false;
+      if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "endReachedEpoch")))) return false;
+      if (!JSIConverter<bool>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "scrollEventsEnabled")))) return false;
+      if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "scrollEventThrottle")))) return false;
+      if (!JSIConverter<bool>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "viewabilityEnabled")))) return false;
+      if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "itemVisiblePercentThreshold")))) return false;
+      if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "minimumViewTime")))) return false;
+      if (!JSIConverter<bool>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "waitForInteraction")))) return false;
+      if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "viewabilityEpoch")))) return false;
       return true;
     }
   };

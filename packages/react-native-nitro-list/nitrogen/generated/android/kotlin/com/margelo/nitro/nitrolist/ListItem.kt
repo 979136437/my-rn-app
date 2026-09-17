@@ -26,7 +26,10 @@ data class ListItem(
   val type: String,
   @DoNotStrip
   @Keep
-  val version: Double
+  val version: Double,
+  @DoNotStrip
+  @Keep
+  val fullSpan: Boolean
 ) {
   /* primary constructor */
 
@@ -36,13 +39,15 @@ data class ListItem(
     return Objects.deepEquals(this.key, other.key)
       && Objects.deepEquals(this.type, other.type)
       && Objects.deepEquals(this.version, other.version)
+      && Objects.deepEquals(this.fullSpan, other.fullSpan)
   }
 
   override fun hashCode(): Int {
     return arrayOf<Any?>(
       key,
       type,
-      version
+      version,
+      fullSpan
     ).contentDeepHashCode()
   }
 
@@ -54,8 +59,8 @@ data class ListItem(
     @Keep
     @Suppress("unused")
     @JvmStatic
-    private fun fromCpp(key: String, type: String, version: Double): ListItem {
-      return ListItem(key, type, version)
+    private fun fromCpp(key: String, type: String, version: Double, fullSpan: Boolean): ListItem {
+      return ListItem(key, type, version, fullSpan)
     }
   }
 }

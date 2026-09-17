@@ -4,6 +4,7 @@ export interface ListItem {
   key: string;
   type: string;
   version: number;
+  fullSpan: boolean;
 }
 
 export type ListLayout = 'list' | 'masonry';
@@ -16,6 +17,20 @@ export interface ListConfig {
   refreshEnabled: boolean;
   refreshHeaderHeight: number;
   refreshThreshold: number;
+  paddingTop: number;
+  paddingRight: number;
+  paddingBottom: number;
+  paddingLeft: number;
+  endReachedEnabled: boolean;
+  endReachedThreshold: number;
+  endReachedEpoch: number;
+  scrollEventsEnabled: boolean;
+  scrollEventThrottle: number;
+  viewabilityEnabled: boolean;
+  itemVisiblePercentThreshold: number;
+  minimumViewTime: number;
+  waitForInteraction: boolean;
+  viewabilityEpoch: number;
 }
 
 export interface SlotBinding {

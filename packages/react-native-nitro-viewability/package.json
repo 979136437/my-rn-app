@@ -1,0 +1,16 @@
+{
+  "name": "react-native-nitro-viewability",
+  "version": "0.1.0",
+  "description": "Android native exposure observation for React Native views, with a reusable viewability tracker",
+  "main": "src/index.ts",
+  "react-native": "src/index.ts",
+  "types": "src/index.ts",
+  "files": ["src", "android", "nitrogen", "nitro.json", "react-native.config.js", "README.md"],
+  "scripts": { "codegen:nitro": "nitrogen" },
+  "peerDependencies": {
+    "react": ">=19.2.0",
+    "react-native": ">=0.86.0",
+    "react-native-nitro-modules": "0.37.1"
+  },
+  "devDependencies": { "nitrogen": "0.37.1" }
+}

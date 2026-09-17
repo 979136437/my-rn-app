@@ -1,0 +1,11 @@
+{
+  "cxxNamespace": ["viewability"],
+  "ios": { "iosModuleName": "NitroViewability" },
+  "android": { "androidNamespace": ["viewability"], "androidCxxLibName": "NitroViewability" },
+  "autolinking": {
+    "ExposureController": {
+      "android": { "language": "kotlin", "implementationClassName": "HybridExposureControllerRegistration" }
+    }
+  },
+  "ignorePaths": ["node_modules"]
+}

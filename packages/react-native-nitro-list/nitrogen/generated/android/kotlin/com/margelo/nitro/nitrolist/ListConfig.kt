@@ -38,7 +38,49 @@ data class ListConfig(
   val refreshHeaderHeight: Double,
   @DoNotStrip
   @Keep
-  val refreshThreshold: Double
+  val refreshThreshold: Double,
+  @DoNotStrip
+  @Keep
+  val paddingTop: Double,
+  @DoNotStrip
+  @Keep
+  val paddingRight: Double,
+  @DoNotStrip
+  @Keep
+  val paddingBottom: Double,
+  @DoNotStrip
+  @Keep
+  val paddingLeft: Double,
+  @DoNotStrip
+  @Keep
+  val endReachedEnabled: Boolean,
+  @DoNotStrip
+  @Keep
+  val endReachedThreshold: Double,
+  @DoNotStrip
+  @Keep
+  val endReachedEpoch: Double,
+  @DoNotStrip
+  @Keep
+  val scrollEventsEnabled: Boolean,
+  @DoNotStrip
+  @Keep
+  val scrollEventThrottle: Double,
+  @DoNotStrip
+  @Keep
+  val viewabilityEnabled: Boolean,
+  @DoNotStrip
+  @Keep
+  val itemVisiblePercentThreshold: Double,
+  @DoNotStrip
+  @Keep
+  val minimumViewTime: Double,
+  @DoNotStrip
+  @Keep
+  val waitForInteraction: Boolean,
+  @DoNotStrip
+  @Keep
+  val viewabilityEpoch: Double
 ) {
   /* primary constructor */
 
@@ -52,6 +94,20 @@ data class ListConfig(
       && Objects.deepEquals(this.refreshEnabled, other.refreshEnabled)
       && Objects.deepEquals(this.refreshHeaderHeight, other.refreshHeaderHeight)
       && Objects.deepEquals(this.refreshThreshold, other.refreshThreshold)
+      && Objects.deepEquals(this.paddingTop, other.paddingTop)
+      && Objects.deepEquals(this.paddingRight, other.paddingRight)
+      && Objects.deepEquals(this.paddingBottom, other.paddingBottom)
+      && Objects.deepEquals(this.paddingLeft, other.paddingLeft)
+      && Objects.deepEquals(this.endReachedEnabled, other.endReachedEnabled)
+      && Objects.deepEquals(this.endReachedThreshold, other.endReachedThreshold)
+      && Objects.deepEquals(this.endReachedEpoch, other.endReachedEpoch)
+      && Objects.deepEquals(this.scrollEventsEnabled, other.scrollEventsEnabled)
+      && Objects.deepEquals(this.scrollEventThrottle, other.scrollEventThrottle)
+      && Objects.deepEquals(this.viewabilityEnabled, other.viewabilityEnabled)
+      && Objects.deepEquals(this.itemVisiblePercentThreshold, other.itemVisiblePercentThreshold)
+      && Objects.deepEquals(this.minimumViewTime, other.minimumViewTime)
+      && Objects.deepEquals(this.waitForInteraction, other.waitForInteraction)
+      && Objects.deepEquals(this.viewabilityEpoch, other.viewabilityEpoch)
   }
 
   override fun hashCode(): Int {
@@ -62,7 +118,21 @@ data class ListConfig(
       estimatedItemSize,
       refreshEnabled,
       refreshHeaderHeight,
-      refreshThreshold
+      refreshThreshold,
+      paddingTop,
+      paddingRight,
+      paddingBottom,
+      paddingLeft,
+      endReachedEnabled,
+      endReachedThreshold,
+      endReachedEpoch,
+      scrollEventsEnabled,
+      scrollEventThrottle,
+      viewabilityEnabled,
+      itemVisiblePercentThreshold,
+      minimumViewTime,
+      waitForInteraction,
+      viewabilityEpoch
     ).contentDeepHashCode()
   }
 
@@ -74,8 +144,8 @@ data class ListConfig(
     @Keep
     @Suppress("unused")
     @JvmStatic
-    private fun fromCpp(layout: ListLayout, numColumns: Double, gap: Double, estimatedItemSize: Double, refreshEnabled: Boolean, refreshHeaderHeight: Double, refreshThreshold: Double): ListConfig {
-      return ListConfig(layout, numColumns, gap, estimatedItemSize, refreshEnabled, refreshHeaderHeight, refreshThreshold)
+    private fun fromCpp(layout: ListLayout, numColumns: Double, gap: Double, estimatedItemSize: Double, refreshEnabled: Boolean, refreshHeaderHeight: Double, refreshThreshold: Double, paddingTop: Double, paddingRight: Double, paddingBottom: Double, paddingLeft: Double, endReachedEnabled: Boolean, endReachedThreshold: Double, endReachedEpoch: Double, scrollEventsEnabled: Boolean, scrollEventThrottle: Double, viewabilityEnabled: Boolean, itemVisiblePercentThreshold: Double, minimumViewTime: Double, waitForInteraction: Boolean, viewabilityEpoch: Double): ListConfig {
+      return ListConfig(layout, numColumns, gap, estimatedItemSize, refreshEnabled, refreshHeaderHeight, refreshThreshold, paddingTop, paddingRight, paddingBottom, paddingLeft, endReachedEnabled, endReachedThreshold, endReachedEpoch, scrollEventsEnabled, scrollEventThrottle, viewabilityEnabled, itemVisiblePercentThreshold, minimumViewTime, waitForInteraction, viewabilityEpoch)
     }
   }
 }

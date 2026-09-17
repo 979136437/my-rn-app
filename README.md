@@ -40,6 +40,25 @@ own `package.json`. Declare local package dependencies with `workspace:*`.
 Run `pnpm install` from the workspace root to install dependencies for all packages.
 Use `pnpm --filter <package-name> <script>` to run a script in a specific package.
 
+## Android 组件曝光
+
+Workspace 包 [react-native-nitro-viewability](packages/react-native-nitro-viewability/README.md)
+提供 `ExposureObserver` 包装组件和 `useExposureObserver` 无包装 Hook，基于同一
+Nitro 原生会话计算可见面积和连续停留时间。Hook ref 应指向设置了
+`collapsable={false}` 的原生 View；路由失焦或业务浮层覆盖时由调用方设置 `active=false`。
+默认阈值为 `50%`、停留 `0 ms`，重新进入可再次曝光，业务自行去重。
+纯可见性监控可只使用 `onVisibilityChange`，将停留时间设为 `0` 来控制视频暂停。
+Android 窗口失焦（例如通知栏导致失焦）或宿主暂停时通知不可见并清空计时，
+恢复获焦后重新判断；路由焦点仍需通过 `active` 传入，恢复播放由业务决定。
+
+演示页包含包装广告、Hook 按钮、暂停 / 恢复开关与重新进入计数，同时保留
+NitroList 的 `onViewableItemsChanged`。独立观察按面积计算；NitroList 复用同一
+Kotlin tracker，但保留列表垂直可见高度比例、槽位版本与业务索引语义。
+观察不识别兄弟浮层、圆角或任意形状的像素遮挡。
+
+首版仅支持 Android，Expo Go 不支持。接入或更新原生代码后需要重新构建
+Android development build；Metro 热更新不能替代。当前未完成原生编译与设备运行验收。
+
 ## Android 国内 Maven 镜像
 
 Android 主工程及其依赖子项目的 Google Maven、Maven Central 使用阿里云镜像：

@@ -1,28 +1,82 @@
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import { Image } from "expo-image";
-import { Stack } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Stack, useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import { NitroList, useRecyclingState, type NitroListDiagnostics, type NitroListRef, type RefreshHeaderInfo } from "react-native-nitro-list";
+import { NitroList, useRecyclingState, type NitroListDiagnostics, type NitroListProps, type NitroListRef, type NitroListScrollInfo, type RefreshHeaderInfo } from "react-native-nitro-list";
+import { ExposureObserver, useExposureObserver, type ExposureInfo } from "react-native-nitro-viewability";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Item = { id: string; number: number; kind: "photo" | "note"; title: string };
 const EMPTY_DIAGNOSTICS: NitroListDiagnostics = { createdCells: 0, rebinds: 0, mountedSlots: 0, activeSlots: 0, reactMounts: 0 };
-const createItems = (count: number): Item[] => Array.from({ length: count }, (_, index) => ({
+const createItems = (count: number, start = 0): Item[] => Array.from({ length: count }, (_, offset) => {
+  const index = start + offset;
+  return ({
   id: `item-${index}`,
   number: index,
   kind: index % 3 === 0 ? "note" : "photo",
   title: ["山野之间", "今天也慢一点", "看见城市的另一面", "收集一点日常"][index % 4],
-}));
+  });
+});
 const keyExtractor = (item: Item) => item.id;
 const getItemType = (item: Item) => item.kind;
+const VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 50, minimumViewTime: 300, waitForInteraction: false };
+type ObservationHandle = {
+  onScroll: (info: NitroListScrollInfo) => void;
+  onViewableItemsChanged: NonNullable<NitroListProps<Item>["onViewableItemsChanged"]>;
+  onExposure: (info: ExposureInfo) => void;
+  onVisibilityChange: (info: ExposureInfo) => void;
+};
 
-function Choice({ label, active = false, onPress }: { label: string; active?: boolean; onPress: () => void }) {
-  return <Pressable accessibilityRole="button" accessibilityState={{ selected: active }} onPress={onPress}
+// Keep frequent observation updates out of the list owner's render path so
+// scroll events do not invalidate accessory elements or item measurements.
+function ObservationPanel({ ref }: { ref: Ref<ObservationHandle> }) {
+  const [scroll, setScroll] = useState({ state: "idle", y: 0 });
+  const [visibleKeys, setVisibleKeys] = useState<string[]>([]);
+  const [exposureCounts, setExposureCounts] = useState<Record<string, number>>({});
+  const [exposures, setExposures] = useState<Record<string, ExposureInfo>>({});
+  useImperativeHandle<ObservationHandle, ObservationHandle>(ref, () => ({
+    onScroll: info => {
+      const y = Math.round(info.contentOffset.y);
+      setScroll(previous => previous.state === info.state && previous.y === y ? previous : { state: info.state, y });
+    },
+    onViewableItemsChanged: ({ viewableItems }) => setVisibleKeys(viewableItems.map(token => token.key)),
+    onExposure: info => setExposureCounts(values => ({ ...values, [info.key]: (values[info.key] ?? 0) + 1 })),
+    onVisibilityChange: info => setExposures(values => ({ ...values, [info.key]: info })),
+  }), []);
+  return <View style={styles.observations}>
+    <Text style={styles.diagnosticsText}>滚动 {scroll.state} · y ≈ {scroll.y} dp · 采样 120 ms</Text>
+    <Text style={styles.diagnosticsText} numberOfLines={1}>可见 {visibleKeys.length} · {visibleKeys.length ? visibleKeys.join(", ") : "暂无（≥ 50%，持续 300 ms）"}</Text>
+    {[["demo-ad-card", "包装广告"], ["demo-expand-header", "Hook 按钮"]].map(([key, label]) =>
+      <Text key={key} style={styles.diagnosticsText}>{label}曝光 {exposureCounts[key] ?? 0} 次 · {exposures[key]?.isViewable ? "已满足" : "未满足"} · 面积 ≥ 50% / 300 ms</Text>)}
+  </View>;
+}
+
+function Choice({ label, active = false, onPress, nativeRef }: { label: string; active?: boolean; onPress: () => void; nativeRef?: Ref<View> }) {
+  return <Pressable ref={nativeRef} collapsable={false} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={onPress}
     style={({ pressed }) => [styles.choice, active && styles.choiceActive, pressed && styles.pressed]}>
     <Text style={[styles.choiceText, active && styles.choiceTextActive]}>{label}</Text>
   </Pressable>;
+}
+
+function ObservedHeaderButton({ expanded, active, onPress, onExposure, onVisibilityChange }: {
+  expanded: boolean;
+  active: boolean;
+  onPress: () => void;
+  onExposure: (info: ExposureInfo) => void;
+  onVisibilityChange: (info: ExposureInfo) => void;
+}) {
+  const observerRef = useExposureObserver({
+    exposureKey: "demo-expand-header",
+    visiblePercentThreshold: 50,
+    minimumViewTime: 300,
+    active,
+    onExposure,
+    onVisibilityChange,
+  });
+  // Choice forwards the ref to its existing native Pressable View; no wrapper.
+  return <Choice nativeRef={observerRef} label={expanded ? "收起头部" : "展开头部"} onPress={onPress} />;
 }
 
 function RefreshHeader({ state, progress }: RefreshHeaderInfo) {
@@ -79,17 +133,68 @@ function Card({ item, favorite, onFavorite }: { item: Item; favorite: boolean; o
 export default function Index() {
   const insets = useSafeAreaInsets();
   const listRef = useRef<NitroListRef>(null);
+  const observationRef = useRef<ObservationHandle>(null);
+  const observeScroll = useCallback((info: NitroListScrollInfo) => observationRef.current?.onScroll(info), []);
+  const observeViewability = useCallback<ObservationHandle["onViewableItemsChanged"]>(info => observationRef.current?.onViewableItemsChanged(info), []);
+  const observeExposure = useCallback((info: ExposureInfo) => observationRef.current?.onExposure(info), []);
+  const observeVisibility = useCallback((info: ExposureInfo) => observationRef.current?.onVisibilityChange(info), []);
+  const [screenFocused, setScreenFocused] = useState(false);
+  const [observationActive, setObservationActive] = useState(true);
+  useFocusEffect(useCallback(() => {
+    setScreenFocused(true);
+    return () => setScreenFocused(false);
+  }, []));
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pageTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestVersion = useRef(0);
+  const nextItem = useRef(12);
+  const failNextPage = useRef(false);
   const sequence = useRef(0);
   const [layout, setLayout] = useState<"list" | "masonry">("masonry");
-  const [count, setCount] = useState(1000);
-  const [data, setData] = useState(() => createItems(1000));
+  const [count, setCount] = useState(12);
+  const [data, setData] = useState(() => createItems(12));
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [pageError, setPageError] = useState(false);
+  const [failureArmed, setFailureArmed] = useState(false);
+  const [headerExpanded, setHeaderExpanded] = useState(false);
+  const [footerExpanded, setFooterExpanded] = useState(false);
   const [favorites, setFavorites] = useState<ReadonlySet<string>>(() => new Set());
   const [refreshing, setRefreshing] = useState(false);
   const [diagnostics, setDiagnostics] = useState(EMPTY_DIAGNOSTICS);
   const available = Platform.OS === "android" && Constants.executionEnvironment !== ExecutionEnvironment.StoreClient;
 
-  useEffect(() => () => { if (refreshTimer.current !== null) clearTimeout(refreshTimer.current); }, []);
+  const cancelRequests = useCallback(() => {
+    requestVersion.current += 1;
+    if (refreshTimer.current !== null) clearTimeout(refreshTimer.current);
+    if (pageTimer.current !== null) clearTimeout(pageTimer.current);
+    refreshTimer.current = null;
+    pageTimer.current = null;
+  }, []);
+  useEffect(() => cancelRequests, [cancelRequests]);
+
+  const loadMore = useCallback((retry = false) => {
+    if (pageTimer.current !== null || refreshTimer.current !== null || !hasMore || (pageError && !retry)) return;
+    const version = requestVersion.current;
+    setLoadingMore(true);
+    setPageError(false);
+    pageTimer.current = setTimeout(() => {
+      if (version !== requestVersion.current) return;
+      pageTimer.current = null;
+      setLoadingMore(false);
+      if (failNextPage.current) {
+        failNextPage.current = false;
+        setFailureArmed(false);
+        setPageError(true);
+        return;
+      }
+      const size = Math.min(12, count + 36 - nextItem.current);
+      const page = createItems(size, nextItem.current);
+      nextItem.current += size;
+      setData(items => [...items, ...page]);
+      setHasMore(nextItem.current < count + 36);
+    }, 1100);
+  }, [count, hasMore, pageError]);
 
   const addItem = useCallback(() => {
     const id = ++sequence.current;
@@ -102,18 +207,29 @@ export default function Index() {
   }), []);
   const onRefresh = useCallback(() => {
     if (refreshTimer.current !== null) return;
+    cancelRequests();
+    setLoadingMore(false);
+    setPageError(false);
     setRefreshing(true);
+    const version = requestVersion.current;
     refreshTimer.current = setTimeout(() => {
-      addItem();
+      if (version !== requestVersion.current) return;
+      nextItem.current = count;
+      setData(createItems(count));
+      setHasMore(true);
       setRefreshing(false);
       refreshTimer.current = null;
     }, 1100);
-  }, [addItem]);
+  }, [cancelRequests, count]);
   const renderItem = useCallback(({ item }: { item: Item }) => <Card item={item} favorite={favorites.has(item.id)} onFavorite={onFavorite} />, [favorites, onFavorite]);
   const switchCount = (next: number) => {
-    if (next === count) return;
-    if (refreshTimer.current !== null) clearTimeout(refreshTimer.current);
-    refreshTimer.current = null;
+    cancelRequests();
+    nextItem.current = next;
+    failNextPage.current = false;
+    setFailureArmed(false);
+    setLoadingMore(false);
+    setPageError(false);
+    setHasMore(true);
     setRefreshing(false);
     setCount(next);
     setData(createItems(next));
@@ -131,22 +247,27 @@ export default function Index() {
     <View style={styles.header}>
       <Text style={styles.eyebrow}>NITRO LIST / ANDROID PROTOTYPE</Text>
       <Text style={styles.heading}>让内容流动起来。</Text>
-      <Text style={styles.subtitle}>原生列表 · React 子树复用 · 自定义下拉刷新</Text>
+      <Text style={styles.subtitle}>原生列表 · 分页加载 · 头尾与空状态</Text>
       <View style={styles.controls}>
         <Choice label="瀑布流" active={layout === "masonry"} onPress={() => switchLayout("masonry")} />
         <Choice label="列表" active={layout === "list"} onPress={() => switchLayout("list")} />
+        <Choice label="分页" active={count === 12} onPress={() => switchCount(12)} />
+        <Choice label="短列表" active={count === 1} onPress={() => switchCount(1)} />
+        <Choice label="空列表" active={count === 0} onPress={() => switchCount(0)} />
         <Choice label="1,000 条" active={count === 1000} onPress={() => switchCount(1000)} />
         <Choice label="10,000 条" active={count === 10000} onPress={() => switchCount(10000)} />
       </View>
       <View style={styles.diagnostics}>
         <Text style={styles.diagnosticsText}>数据 {data.length} · cell 创建 {diagnostics.createdCells} · 换绑 {diagnostics.rebinds}</Text>
         <Text style={styles.diagnosticsText}>槽位 {diagnostics.mountedSlots} / 活跃 {diagnostics.activeSlots} · React 累计挂载 {diagnostics.reactMounts}</Text>
+        <ObservationPanel key={`${layout}-${count}`} ref={observationRef} />
       </View>
       <View style={styles.toolbar}>
         <Choice label="顶部插入" onPress={addItem} />
         <Choice label="删除首项" onPress={() => setData(items => items.slice(1))} />
         <Choice label="回顶部" onPress={() => listRef.current?.scrollToOffset({ offset: 0, animated: true })} />
         <Choice label="到底部" onPress={() => listRef.current?.scrollToEnd({ animated: true })} />
+        <Choice label={observationActive ? "暂停普通组件曝光" : "恢复普通组件曝光"} active={observationActive} onPress={() => setObservationActive(value => !value)} />
       </View>
     </View>
     {available ? <NitroList
@@ -161,6 +282,58 @@ export default function Index() {
       layout={layout}
       numColumns={layout === "masonry" ? 3 : 1}
       gap={12}
+      contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24 }}
+      onEndReached={() => loadMore()}
+      onEndReachedThreshold={0.5}
+      loadingMore={loadingMore}
+      hasMore={hasMore}
+      onScroll={observeScroll}
+      onScrollStateChange={observeScroll}
+      scrollEventThrottle={120}
+      viewabilityConfig={VIEWABILITY_CONFIG}
+      onViewableItemsChanged={observeViewability}
+      ListHeaderComponent={<View style={styles.listHeader}>
+        <Text style={styles.cardTitle}>沿途收藏</Text>
+        <Text style={styles.cardCopy}>每次追加 12 条，最多追加 36 条。短列表自动补页；空列表由按钮发起首次加载。</Text>
+        <ExposureObserver
+          exposureKey="demo-ad-card"
+          visiblePercentThreshold={50}
+          minimumViewTime={300}
+          active={screenFocused && observationActive}
+          onExposure={observeExposure}
+          onVisibilityChange={observeVisibility}
+          style={styles.adCard}
+        >
+          <Text style={styles.cardTag}>推广 · 包装组件曝光</Text>
+          <Text style={styles.cardTitle}>下一段风景，等你发现</Text>
+          <Text style={styles.cardCopy}>广告和按钮滚出视口后再回顶部，停留 300 ms 可再次计数；暂停后恢复也会重新计时。</Text>
+        </ExposureObserver>
+        <View style={styles.toolbar}>
+          <ObservedHeaderButton
+            expanded={headerExpanded}
+            active={screenFocused && observationActive}
+            onPress={() => setHeaderExpanded(value => !value)}
+            onExposure={observeExposure}
+            onVisibilityChange={observeVisibility}
+          />
+          <Choice label={failureArmed ? "已设下次失败" : "模拟下次失败"} active={failureArmed} onPress={() => {
+            failNextPage.current = !failNextPage.current;
+            setFailureArmed(failNextPage.current);
+          }} />
+        </View>
+        {headerExpanded && <Text style={styles.cardCopy}>头部横跨所有列，随内容一起滚动。展开后重新测量高度，可滚到中部再改变内容，观察滚动锚点。</Text>}
+      </View>}
+      ListEmptyComponent={<View style={styles.emptyState}>
+        <Text style={styles.cardTitle}>这里还没有内容</Text>
+        <Text style={styles.cardCopy}>空列表不会自动触发触底加载。</Text>
+        <Choice label={loadingMore ? "加载中…" : "加载第一批"} onPress={() => loadMore(true)} />
+      </View>}
+      ListFooterComponent={<View style={styles.listFooter}>
+        <Text style={styles.refreshText}>{refreshing ? "正在刷新列表…" : loadingMore ? "正在加载下一页…" : pageError ? "本次加载失败，点击重试" : !hasMore ? "已经看完全部内容" : "向下滚动，加载更多"}</Text>
+        {pageError && <Choice label="重试" onPress={() => loadMore(true)} />}
+        <Choice label={footerExpanded ? "收起尾部" : "展开尾部"} onPress={() => setFooterExpanded(value => !value)} />
+        {footerExpanded && <Text style={styles.cardCopy}>这是可变高度尾部。滚到底部应显示此说明与底部内边距；加载状态和高度变化不会单独重试失败的分页请求。</Text>}
+      </View>}
       estimatedItemSize={270}
       refreshing={refreshing}
       onRefresh={onRefresh}
@@ -170,7 +343,7 @@ export default function Index() {
       onDiagnostics={setDiagnostics}
     /> : <View style={styles.unavailable}>
       <Text style={styles.unavailableTitle}>在 Android 开发构建中打开</Text>
-      <Text style={styles.unavailableText}>此原型包含自定义原生模块，需要包含 react-native-nitro-list 的 Android development build，Expo Go 无法加载。iOS 与 Web 暂未实现。</Text>
+      <Text style={styles.unavailableText}>此原型包含自定义原生模块，需要重新构建包含 react-native-nitro-list 与 react-native-nitro-viewability 的 Android development build，Expo Go 无法加载。iOS 与 Web 暂未实现。</Text>
     </View>}
     <Text style={styles.footer}>原型 · 尚未完成原生编译与设备验收 · 图片来自 picsum.photos</Text>
   </View>;
@@ -190,8 +363,13 @@ const styles = StyleSheet.create({
   choiceTextActive: { color: "#FFFFFF" },
   pressed: { opacity: 0.65 },
   diagnostics: { marginTop: 12, gap: 3 },
+  observations: { gap: 3 },
   diagnosticsText: { fontSize: 10, color: "#5C6B63", fontVariant: ["tabular-nums"] },
-  list: { flex: 1, marginHorizontal: 16 },
+  list: { flex: 1 },
+  listHeader: { paddingBottom: 16 },
+  adCard: { marginTop: 12, padding: 16, borderRadius: 14, backgroundColor: "#E5EDDB" },
+  listFooter: { paddingTop: 18, gap: 10, alignItems: "center" },
+  emptyState: { paddingVertical: 24, gap: 14, alignItems: "center" },
   card: { borderRadius: 14, overflow: "hidden", backgroundColor: "#FFFFFF" },
   noteCard: { backgroundColor: "#E5EDDB" },
   imageFrame: { width: "100%", backgroundColor: "#DEE4DC", justifyContent: "center", alignItems: "center" },

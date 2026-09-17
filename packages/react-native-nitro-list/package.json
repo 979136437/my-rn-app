@@ -7,6 +7,7 @@
   "types": "src/index.ts",
   "files": ["src", "android", "nitrogen", "nitro.json", "react-native.config.js", "README.md"],
   "scripts": { "codegen:nitro": "nitrogen" },
+  "dependencies": { "react-native-nitro-viewability": "workspace:*" },
   "peerDependencies": {
     "react": ">=19.2.0",
     "react-native": ">=0.86.0",

@@ -39,14 +39,27 @@ open class HybridNitroListController : HybridNitroListControllerSpec() {
     require(config.estimatedItemSize.isFinite() && config.estimatedItemSize > 0) { "estimatedItemSize must be positive" }
     require(config.refreshHeaderHeight.isFinite() && config.refreshHeaderHeight > 0) { "refreshHeaderHeight must be positive" }
     require(config.refreshThreshold.isFinite() && config.refreshThreshold > 0) { "refreshThreshold must be positive" }
+    require(listOf(config.paddingTop, config.paddingRight, config.paddingBottom, config.paddingLeft).all {
+      it.isFinite() && it >= 0
+    }) { "content padding must be finite and non-negative" }
+    require(config.endReachedThreshold.isFinite() && config.endReachedThreshold >= 0) { "onEndReachedThreshold must be finite and non-negative" }
+    require(config.endReachedEpoch.isFinite()) { "endReachedEpoch must be finite" }
+    require(config.scrollEventThrottle.isFinite() && config.scrollEventThrottle >= 0) { "scrollEventThrottle must be finite and non-negative" }
+    require(config.itemVisiblePercentThreshold.isFinite() && config.itemVisiblePercentThreshold in 0.0..100.0) { "itemVisiblePercentThreshold must be between 0 and 100" }
+    require(config.minimumViewTime.isFinite() && config.minimumViewTime >= 0) { "minimumViewTime must be finite and non-negative" }
+    require(config.viewabilityEpoch.isFinite()) { "viewabilityEpoch must be finite" }
     val next = Configuration(config.layout == ListLayout.MASONRY, config.numColumns.toInt(), config.gap,
-      config.estimatedItemSize, config.refreshEnabled, config.refreshHeaderHeight, config.refreshThreshold)
+      config.estimatedItemSize, config.refreshEnabled, config.refreshHeaderHeight, config.refreshThreshold,
+      config.paddingTop, config.paddingRight, config.paddingBottom, config.paddingLeft,
+      config.endReachedEnabled, config.endReachedThreshold, config.endReachedEpoch,
+      config.scrollEventsEnabled, config.scrollEventThrottle, config.viewabilityEnabled,
+      config.itemVisiblePercentThreshold, config.minimumViewTime, config.waitForInteraction, config.viewabilityEpoch)
     onUI { configuration = next; currentView?.configure(next) }
   }
 
   override fun setItems(items: Array<ListItem>) {
     require(items.map { it.key }.toSet().size == items.size) { "NitroList requires unique item keys" }
-    val next = items.map { Entry(it.key, it.type, it.version) }
+    val next = items.map { Entry(it.key, it.type, it.version, it.fullSpan) }
     onUI { this.items = next; currentView?.setItems(next) }
   }
 

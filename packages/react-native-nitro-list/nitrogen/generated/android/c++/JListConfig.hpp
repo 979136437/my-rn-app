@@ -46,6 +46,34 @@ namespace margelo::nitro::nitrolist {
       double refreshHeaderHeight = this->getFieldValue(fieldRefreshHeaderHeight);
       static const auto fieldRefreshThreshold = clazz->getField<double>("refreshThreshold");
       double refreshThreshold = this->getFieldValue(fieldRefreshThreshold);
+      static const auto fieldPaddingTop = clazz->getField<double>("paddingTop");
+      double paddingTop = this->getFieldValue(fieldPaddingTop);
+      static const auto fieldPaddingRight = clazz->getField<double>("paddingRight");
+      double paddingRight = this->getFieldValue(fieldPaddingRight);
+      static const auto fieldPaddingBottom = clazz->getField<double>("paddingBottom");
+      double paddingBottom = this->getFieldValue(fieldPaddingBottom);
+      static const auto fieldPaddingLeft = clazz->getField<double>("paddingLeft");
+      double paddingLeft = this->getFieldValue(fieldPaddingLeft);
+      static const auto fieldEndReachedEnabled = clazz->getField<jboolean>("endReachedEnabled");
+      jboolean endReachedEnabled = this->getFieldValue(fieldEndReachedEnabled);
+      static const auto fieldEndReachedThreshold = clazz->getField<double>("endReachedThreshold");
+      double endReachedThreshold = this->getFieldValue(fieldEndReachedThreshold);
+      static const auto fieldEndReachedEpoch = clazz->getField<double>("endReachedEpoch");
+      double endReachedEpoch = this->getFieldValue(fieldEndReachedEpoch);
+      static const auto fieldScrollEventsEnabled = clazz->getField<jboolean>("scrollEventsEnabled");
+      jboolean scrollEventsEnabled = this->getFieldValue(fieldScrollEventsEnabled);
+      static const auto fieldScrollEventThrottle = clazz->getField<double>("scrollEventThrottle");
+      double scrollEventThrottle = this->getFieldValue(fieldScrollEventThrottle);
+      static const auto fieldViewabilityEnabled = clazz->getField<jboolean>("viewabilityEnabled");
+      jboolean viewabilityEnabled = this->getFieldValue(fieldViewabilityEnabled);
+      static const auto fieldItemVisiblePercentThreshold = clazz->getField<double>("itemVisiblePercentThreshold");
+      double itemVisiblePercentThreshold = this->getFieldValue(fieldItemVisiblePercentThreshold);
+      static const auto fieldMinimumViewTime = clazz->getField<double>("minimumViewTime");
+      double minimumViewTime = this->getFieldValue(fieldMinimumViewTime);
+      static const auto fieldWaitForInteraction = clazz->getField<jboolean>("waitForInteraction");
+      jboolean waitForInteraction = this->getFieldValue(fieldWaitForInteraction);
+      static const auto fieldViewabilityEpoch = clazz->getField<double>("viewabilityEpoch");
+      double viewabilityEpoch = this->getFieldValue(fieldViewabilityEpoch);
       return ListConfig(
         layout->toCpp(),
         numColumns,
@@ -53,7 +81,21 @@ namespace margelo::nitro::nitrolist {
         estimatedItemSize,
         static_cast<bool>(refreshEnabled),
         refreshHeaderHeight,
-        refreshThreshold
+        refreshThreshold,
+        paddingTop,
+        paddingRight,
+        paddingBottom,
+        paddingLeft,
+        static_cast<bool>(endReachedEnabled),
+        endReachedThreshold,
+        endReachedEpoch,
+        static_cast<bool>(scrollEventsEnabled),
+        scrollEventThrottle,
+        static_cast<bool>(viewabilityEnabled),
+        itemVisiblePercentThreshold,
+        minimumViewTime,
+        static_cast<bool>(waitForInteraction),
+        viewabilityEpoch
       );
     }
 
@@ -63,7 +105,7 @@ namespace margelo::nitro::nitrolist {
      */
     [[maybe_unused]]
     static jni::local_ref<JListConfig::javaobject> fromCpp(const ListConfig& value) {
-      using JSignature = JListConfig(jni::alias_ref<JListLayout>, double, double, double, jboolean, double, double);
+      using JSignature = JListConfig(jni::alias_ref<JListLayout>, double, double, double, jboolean, double, double, double, double, double, double, jboolean, double, double, jboolean, double, jboolean, double, double, jboolean, double);
       static const auto clazz = javaClassStatic();
       static const auto create = clazz->getStaticMethod<JSignature>("fromCpp");
       return create(
@@ -74,7 +116,21 @@ namespace margelo::nitro::nitrolist {
         value.estimatedItemSize,
         value.refreshEnabled,
         value.refreshHeaderHeight,
-        value.refreshThreshold
+        value.refreshThreshold,
+        value.paddingTop,
+        value.paddingRight,
+        value.paddingBottom,
+        value.paddingLeft,
+        value.endReachedEnabled,
+        value.endReachedThreshold,
+        value.endReachedEpoch,
+        value.scrollEventsEnabled,
+        value.scrollEventThrottle,
+        value.viewabilityEnabled,
+        value.itemVisiblePercentThreshold,
+        value.minimumViewTime,
+        value.waitForInteraction,
+        value.viewabilityEpoch
       );
     }
   };

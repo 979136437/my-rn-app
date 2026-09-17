@@ -37,10 +37,13 @@ namespace margelo::nitro::nitrolist {
       jni::local_ref<jni::JString> type = this->getFieldValue(fieldType);
       static const auto fieldVersion = clazz->getField<double>("version");
       double version = this->getFieldValue(fieldVersion);
+      static const auto fieldFullSpan = clazz->getField<jboolean>("fullSpan");
+      jboolean fullSpan = this->getFieldValue(fieldFullSpan);
       return ListItem(
         key->toStdString(),
         type->toStdString(),
-        version
+        version,
+        static_cast<bool>(fullSpan)
       );
     }
 
@@ -50,14 +53,15 @@ namespace margelo::nitro::nitrolist {
      */
     [[maybe_unused]]
     static jni::local_ref<JListItem::javaobject> fromCpp(const ListItem& value) {
-      using JSignature = JListItem(jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>, double);
+      using JSignature = JListItem(jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>, double, jboolean);
       static const auto clazz = javaClassStatic();
       static const auto create = clazz->getStaticMethod<JSignature>("fromCpp");
       return create(
         clazz,
         jni::make_jstring(value.key),
         jni::make_jstring(value.type),
-        value.version
+        value.version,
+        value.fullSpan
       );
     }
   };

@@ -1,6 +1,6 @@
 # react-native-nitro-list
 
-Android 原生列表原型：`RecyclerView` 负责滚动、布局和 cell 回收，Fabric 承载 React 内容，Nitro HybridObject 提供列表控制接口。支持纵向列表、动态高度瀑布流、同类型 React 子树复用以及 React 自定义下拉刷新头。
+Android 原生列表原型：`RecyclerView` 负责滚动、布局和 cell 回收，Fabric 承载 React 内容，Nitro HybridObject 提供列表控制接口。支持纵向列表、动态高度瀑布流、同类型 React 子树复用、React 自定义下拉刷新头、触底加载、列表头尾、空状态与内容内边距。
 
 当前接入环境为 Expo 57、React Native 0.86.3、新架构、React 19.2.3 和 Reanimated 4.5.1。`react-native-nitro-modules` 与 Nitrogen 固定为 **0.37.1**。这些是原型的接入版本，不表示已完成兼容性认证。
 
@@ -122,6 +122,21 @@ export function Feed({ initialItems, loadItems }: {
 | `gap` | 行列间距，dp | `0` |
 | `estimatedItemSize` | 初次测量之前的估算高度，dp | `160` |
 | `style` | 原生列表容器样式 | `flex: 1`、`overflow: "hidden"` |
+| `contentContainerStyle` | 仅支持数值型 `padding`、`paddingHorizontal`、`paddingVertical`、`paddingTop`、`paddingRight`、`paddingBottom`、`paddingLeft` | 各边 `0` |
+| `ListHeaderComponent` | 列表头部，接受 React 元素或无必填参数的组件类型 | 未设置 |
+| `ListFooterComponent` | 列表尾部，接受 React 元素或无必填参数的组件类型 | 未设置 |
+| `ListEmptyComponent` | 数据为空时的内容，接受 React 元素或无必填参数的组件类型 | 未设置 |
+| `onEndReached()` | 非空列表进入末端阈值时通知业务加载 | 未设置 |
+| `onEndReachedThreshold` | 距末端阈值，单位为扣除垂直内容内边距后的可用视口高度 | `0.5` |
+| `loadingMore` | 受控分页加载状态；加载中不触发触底通知 | `false` |
+| `hasMore` | 是否仍有下一页 | `true` |
+| `onScroll(info)` | 异步 JS 滚动位置通知，参数为 `NitroListScrollInfo` | 未设置 |
+| `scrollEventThrottle` | `onScroll` 最小通知间隔，有限非负毫秒数；`0` 表示最多每帧一次 | `16` |
+| `onScrollStateChange(info)` | 原生滚动状态变化通知，不受滚动节流限制 | 未设置 |
+| `onScrollBeginDrag(info)` / `onScrollEndDrag(info)` | 进入 / 离开 `dragging` 状态时通知 | 未设置 |
+| `onMomentumScrollBegin(info)` / `onMomentumScrollEnd(info)` | 进入 / 离开 `settling` 状态时通知，包括程序动画滚动 | 未设置 |
+| `viewabilityConfig` | 可见比例、连续停留时间、是否等待交互，详见下文 | `50%` / `0 ms` / `false` |
+| `onViewableItemsChanged({ viewableItems, changed })` | 业务数据项可见集合或其内容改变时通知 | 未设置 |
 | `refreshing` | 受控刷新状态 | `false` |
 | `onRefresh()` | 达到阈值并松手后触发 | 未设置 |
 | `renderRefreshHeader(info)` | 自定义 React 刷新头 | 启用刷新时使用内置指示器和文案 |
@@ -138,6 +153,99 @@ export function Feed({ initialItems, loadItems }: {
 `onRefresh` 必须及时设置 `refreshing=true`，并在异步操作结束的 `finally` 中设置为 `false`。原生在等待受控状态确认时有约 1 秒超时；业务未确认时回弹，避免刷新头永久停留。业务也可以直接控制 `refreshing` 发起刷新。没有 `onRefresh` 时不触发手势刷新。
 
 下拉过程中外部开启 `refreshing` 时，当前手势不再改变刷新状态，也不会在松手时重复请求刷新；手势结束后保持受控刷新头。
+
+## 分页、头尾与内容内边距
+
+内容顺序为头部、数据（为空时显示空状态）、尾部。辅助区域在瀑布流中占满内容宽度，空状态按自身内容自然高度展示，不自动填满视口。辅助区域不会调用业务 `keyExtractor`、`getItemType` 或 `renderItem`，业务索引仍从 `0` 开始。辅助区域自身不添加 `gap`，需要留白时在头尾或空状态自身设置 padding；数据卡片保留现有列间距和底部 `gap`，包括尾部之前最后一张卡片的底部间距。
+
+`contentContainerStyle` 的具体边优先于轴向 padding，轴向 padding 优先于总 padding；省略的值为零。仅支持以上非负、有限数值型 padding 属性，不支持百分比、背景、对齐或任意 `ViewStyle` 属性；不支持的属性会报错。内容宽度先扣除左右内边距，再划分瀑布流列宽；头尾与空状态使用完整内容宽度。`scrollToOffset({ offset: 0 })` 展示包含顶部内边距的内容顶部，`scrollToEnd()` 包含尾部与底部内边距。
+
+```tsx
+<NitroList
+  data={items}
+  keyExtractor={item => item.id}
+  renderItem={({ item }) => <Card item={item} />}
+  contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24 }}
+  ListHeaderComponent={<Text style={{ paddingBottom: 16 }}>最新内容</Text>}
+  ListEmptyComponent={<Text>暂无内容，请刷新或主动加载第一批</Text>}
+  ListFooterComponent={
+    <View style={{ paddingTop: 16 }}>
+      <Text>{loadingMore ? "加载中…" : error ? "加载失败" : hasMore ? "继续向下浏览" : "没有更多了"}</Text>
+      {error && <Pressable onPress={retryPage}><Text>重试</Text></Pressable>}
+    </View>
+  }
+  onEndReached={loadNextPage}
+  onEndReachedThreshold={0.5}
+  loadingMore={loadingMore}
+  hasMore={hasMore}
+/>
+```
+
+以上分页状态和回调由业务提供。`loadNextPage` 应同步设置加载状态，并用请求锁防止重复请求；成功后以新数组追加数据，更新 `hasMore`，结束时清除 `loadingMore`。失败后保留错误状态，重试按钮直接调用业务重试逻辑。列表不内置网络请求、错误提示或重试策略。刷新、切换查询和卸载时取消旧请求或通过请求版本丢弃旧结果，避免旧分页追加到新数据中。
+
+触底通知要求存在数据及回调、`hasMore=true`，且未刷新、未分页加载；首次非空短列表也会检查并自动补页。空列表不触发，因此第一批数据必须由业务主动加载。同一批数据停留在阈值内只通知一次；成功追加后会再次检查，必要时继续补页。仅切换 `loadingMore`、更新头尾或重新测量不会重置记录，失败或返回空页不自动重试；滚出阈值后再次进入可重新通知。业务如要求错误后只能手动重试，应在 `loadNextPage` 中检查错误状态。返回空页且已结束时应设置 `hasMore=false`。
+
+末端距离包含尾部和底部内边距。末端尚未挂载时，按缓存尺寸及 `estimatedItemSize` 估算剩余距离；末端挂载并测量后使用实际布局，瀑布流取最深列。因此动态高度列表的触发位置可能随测量修正，阈值不是精确像素承诺。刷新开始会重置触发记录，刷新结束后可重新检查短列表；原生事件携带内部代际标识，丢弃数据替换或刷新前排队的旧通知。
+
+## 滚动事件与可见项目
+
+所有滚动回调使用相同的 `NitroListScrollInfo`：
+
+```ts
+type NitroListScrollInfo = {
+  contentOffset: { x: number; y: number };
+  contentSize: { width: number; height: number };
+  layoutMeasurement: { width: number; height: number };
+  state: "idle" | "dragging" | "settling";
+  timestamp: number;
+};
+```
+
+尺寸和偏移使用 dp，`timestamp` 是原生单调时钟的毫秒值，不能当作日期或直接与 `Date.now()` 相减。动态高度项目尚未测量时，内容高度和偏移包含估算值；测量或布局变化后可能修正，不宜据此计算精确曝光位置或远距离项目坐标。
+
+`dragging` 表示原生列表拖动，`settling` 包括松手后的惯性滚动以及 `scrollToOffset` / `scrollToEnd` 发起的动画滚动，`idle` 表示静止。因此 `onMomentumScrollBegin` 不保证由用户手势发起。拖动结束后可能直接进入 `idle`，不一定发生惯性滚动。状态变化通知及对应的拖动、惯性边界回调不受 `scrollEventThrottle` 限制；这些回调都异步进入 JS，不是 UI 线程 worklet 接口。
+
+刷新头的下拉与回弹沿用独立的刷新进度接口，不改变列表内容偏移，也不单独产生列表拖动阶段回调。`waitForInteraction` 接受用户拖动列表或下拉刷新，程序调用滚动不解除该门槛。
+
+`viewabilityConfig` 支持以下三个可选字段：
+
+| 字段 | 规则 | 默认值 |
+| --- | --- | --- |
+| `itemVisiblePercentThreshold` | 有限数值 `0..100`；项目垂直可见高度占自身高度的百分比阈值 | `50` |
+| `minimumViewTime` | 有限非负毫秒数；满足比例条件的连续时间 | `0` |
+| `waitForInteraction` | 首次用户滚动交互之前暂不报告可见项目 | `false` |
+
+项目必须与可用视口存在正高度重叠；阈值为 `0` 也不把零重叠项目算作可见。完全可见的项目符合比例条件。连续停留计时在离开条件或项目内容版本改变时重置；头部、尾部、空状态以及虽挂载但被隐藏的过期槽位内容均不计入。
+
+可见性按列表内的实际几何范围计算，包含内容内边距及刷新下拉后的裁剪，不检测其他浮层对卡片的遮挡。列表隐藏、窗口不可见或脱离窗口时会清空计时与可见集合；重新显示后重新计算连续停留时间。卸载后的回调不会送给已卸载的 React 组件。
+
+回调中的 `viewableItems` 是当前符合条件的业务项目，`changed` 是本次变化；每个 token 含 `{ item, key, index, isViewable }`，`index` 始终是原始业务数据索引。项目离开或删除时以最后已知的 `item`、`index` 报告 `isViewable: false`；新项目满足条件或可见项目的索引、内容改变时报告 `true`。该回调不会随每次滚动重复发送相同集合；首次可以收到空集合快照。它用于业务曝光或可见状态追踪，不代表所有挂载槽位。
+
+```tsx
+// 保持配置、回调引用稳定。不要在滚动回调里替换业务数据数组。
+const viewabilityConfig = { itemVisiblePercentThreshold: 50, minimumViewTime: 300 };
+
+<NitroList
+  data={items}
+  keyExtractor={item => item.id}
+  renderItem={({ item }) => <Card item={item} />}
+  scrollEventThrottle={120}
+  onScroll={handleScroll}
+  onScrollStateChange={handleScrollStateChange}
+  viewabilityConfig={viewabilityConfig}
+  onViewableItemsChanged={handleViewableItemsChanged}
+/>
+```
+
+演示页将滚动状态、取整后的 y 偏移和可见 key 数量显示在独立状态面板，以 `120 ms` 采样滚动、`50% / 300 ms` 判断可见性。面板更新不触发列表所属组件重新渲染，避免滚动读数反复改变头尾元素身份和测量版本。业务在父组件存储滚动状态时，也应稳定头尾元素与列表数据引用。
+
+### 普通组件曝光
+
+独立的 workspace 包 `react-native-nitro-viewability` 提供 `ExposureObserver` 包装组件和 `useExposureObserver` 无包装 Hook，可观察按钮、广告卡片等普通组件；两个入口共用 Nitro 原生观察控制器。NitroList 的 Android 可见性适配器复用它的 Kotlin tracker 核心，列表公开 API、业务索引、槽位版本过滤及垂直高度比例语义保持不变。独立观察使用**可见面积比例**，不要将两个接口的百分比含义混用。列表数据项优先使用 `onViewableItemsChanged`，无需为每个 cell 添加包装器。
+
+演示在列表头部使用包装广告卡片和 Hook 观察现有展开按钮，设置稳定 key、`50%` 面积和 `300 ms` 连续停留时间，并用路由焦点与工具栏暂停开关共同控制 `active`。Hook ref 必须连接实际原生 View，且目标需要 `collapsable={false}`。独立面板分别显示曝光次数，回调不会让列表父组件反复重渲染。滚出再进入且满足停留时间会再次计数，不做全局一次性去重。两个入口没有 JS 逐帧轮询，不承诺识别同级浮层遮挡或复杂变换；详细用法和限制见 [独立包 README](../react-native-nitro-viewability/README.md)。
+
+该共享原生依赖需要随 Android 应用重新构建，Expo Go 不能加载；本次未执行构建或设备验收。
 
 ## 复用与状态约定
 
@@ -159,7 +267,7 @@ export function Feed({ initialItems, loadItems }: {
 
 ## 演示与待验收项目
 
-根应用首页提供普通列表 / 瀑布流切换、1,000 / 10,000 条数据、两种卡片类型、异步网络图片、展开收起、外部收藏、顶部插入、删除首项、滚动控制与自定义刷新头。切换布局或数据规模会重新挂载列表，以便分开观察计数。
+根应用首页提供普通列表 / 瀑布流切换、1,000 / 10,000 条数据、两种卡片类型、异步网络图片、展开收起、外部收藏、顶部插入、删除首项、滚动控制与自定义刷新头。另提供初始 12 条的分页模式、1 条短列表和空列表，每页追加 12 条，最多追加 36 条；可模拟下一次请求失败、手动重试、查看结束状态、展开头尾以及主动加载空列表。刷新重置当前模式数据，并取消旧分页请求。切换布局或数据规模会重新挂载列表，以便分开观察计数。
 
 `onDiagnostics` 的字段：`createdCells` 为累计原生 cell 创建数，`rebinds` 为原生换绑计数，`mountedSlots` 为当前 React 槽位数，`activeSlots` 为当前活跃槽位数，`reactMounts` 为累计 React 槽位挂载数。累计值会因回收池淘汰后重新创建而增长，开发环境 Strict Mode 也会影响挂载计数；不能仅凭累计计数判定泄漏。
 
@@ -175,5 +283,11 @@ export function Feed({ initialItems, loadItems }: {
 8. 瀑布流在顶部连续插入、删除、收藏和回顶部，两列首项顶边应对齐；连续收藏时其他可见卡片不消失，且同 key/type 顺序的更新不增加换绑计数。另用会改变高度的 `extraData` 验证新尺寸仍能更新，单列切换 `gap` 后卡片不能永久隐藏。
 9. 尾项设置为明显高于 `estimatedItemSize`，首次非动画滚到底部应在测量后露出完整底边；动画滚动中立即执行非动画回顶部，旧滚动不能继续覆盖位置。等待测量时触摸或更新数据，应取消旧的底部补齐。
 10. 下拉尚未松手时外部设置 `refreshing=true`，分别在阈值上方和下方松手或取消触摸；刷新头保持刷新态，且不额外触发 `onRefresh`。
+11. 普通列表和瀑布流分别验证首次短列表自动补页、快速滚动触底去重、追加后继续检查、达到结束状态停止；失败后留在阈值内不自动重试，点击重试可继续，刷新期间不加载。分页请求中刷新或切换数据，旧结果不能追加到新列表。
+12. 空列表只显示头部、空状态、尾部，不自动请求；点击首次加载后空状态消失。展开头尾、点击其中按钮，检查全宽布局、点击范围、动态测量和业务索引；辅助内容不应进入业务 key/type 提取函数。
+13. 检查总 padding、轴向 padding、具体边的覆盖关系，普通列表与瀑布流内容宽度、列间距、回顶部和包含尾部的完整底边。更新内边距和头尾高度时，不应应用旧版本测量或丢失滚动锚点。
+14. 普通列表和瀑布流分别拖动后直接停止、惯性滚动、动画回顶部和到底部，检查 `idle / dragging / settling` 及拖动、惯性边界通知。对比 `scrollEventThrottle=0 / 16 / 120`，状态通知不被节流；动态测量后偏移、尺寸允许修正，事件单位为 dp，时间单调递增。
+15. 可见比例使用 `0 / 50 / 100`，检查正重叠、完全可见、部分遮挡、短于 `minimumViewTime` 的快速经过和连续停留；离开再进入必须重新计时。启用 `waitForInteraction` 后首次静止不产生业务可见项，交互后恢复追踪。
+16. 可见项目插入、删除、换绑、内容版本变化及头尾展开时，检查 `changed` 的进出状态、原始业务索引和最后已知项目。头尾、空状态、未准备好的隐藏槽位不能被报告；稳定集合不逐帧重复回调。退出页面或替换数据后无旧停留计时结果。
 
 尚无项目测试框架时不额外引入测试框架；不通过自动测试命令间接触发未经授权的项目构建。

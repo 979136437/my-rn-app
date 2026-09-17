@@ -42,10 +42,11 @@ namespace margelo::nitro::nitrolist {
     std::string key     SWIFT_PRIVATE;
     std::string type     SWIFT_PRIVATE;
     double version     SWIFT_PRIVATE;
+    bool fullSpan     SWIFT_PRIVATE;
 
   public:
     ListItem() = default;
-    explicit ListItem(std::string key, std::string type, double version): key(key), type(type), version(version) {}
+    explicit ListItem(std::string key, std::string type, double version, bool fullSpan): key(key), type(type), version(version), fullSpan(fullSpan) {}
 
   public:
     friend bool operator==(const ListItem& lhs, const ListItem& rhs) = default;
@@ -63,7 +64,8 @@ namespace margelo::nitro {
       return margelo::nitro::nitrolist::ListItem(
         JSIConverter<std::string>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "key"))),
         JSIConverter<std::string>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "type"))),
-        JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "version")))
+        JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "version"))),
+        JSIConverter<bool>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "fullSpan")))
       );
     }
     static inline jsi::Value toJSI(jsi::Runtime& runtime, const margelo::nitro::nitrolist::ListItem& arg) {
@@ -71,6 +73,7 @@ namespace margelo::nitro {
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "key"), JSIConverter<std::string>::toJSI(runtime, arg.key));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "type"), JSIConverter<std::string>::toJSI(runtime, arg.type));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "version"), JSIConverter<double>::toJSI(runtime, arg.version));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "fullSpan"), JSIConverter<bool>::toJSI(runtime, arg.fullSpan));
       return obj;
     }
     static inline bool canConvert(jsi::Runtime& runtime, const jsi::Value& value) {
@@ -84,6 +87,7 @@ namespace margelo::nitro {
       if (!JSIConverter<std::string>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "key")))) return false;
       if (!JSIConverter<std::string>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "type")))) return false;
       if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "version")))) return false;
+      if (!JSIConverter<bool>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "fullSpan")))) return false;
       return true;
     }
   };

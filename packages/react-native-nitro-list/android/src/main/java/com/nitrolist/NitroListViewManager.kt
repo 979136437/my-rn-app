@@ -35,6 +35,10 @@ class NitroListViewManager : ViewGroupManager<NitroListView>(), NitroListViewMan
     "topRefreshRequested" to mapOf("registrationName" to "onRefreshRequested"),
     "topRefreshStateChange" to mapOf("registrationName" to "onRefreshStateChange"),
     "topPullProgress" to mapOf("registrationName" to "onPullProgress"),
+    "topEndReached" to mapOf("registrationName" to "onEndReached"),
+    "topListScroll" to mapOf("registrationName" to "onListScroll"),
+    "topListScrollStateChange" to mapOf("registrationName" to "onListScrollStateChange"),
+    "topViewableItemsChange" to mapOf("registrationName" to "onViewableItemsChange"),
   )
   companion object { const val NAME = "NitroListView" }
 }
