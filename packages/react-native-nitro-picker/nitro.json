@@ -1,0 +1,11 @@
+{
+  "cxxNamespace": ["picker"],
+  "ios": { "iosModuleName": "NitroPicker" },
+  "android": { "androidNamespace": ["picker"], "androidCxxLibName": "NitroPicker" },
+  "autolinking": {
+    "PickerController": {
+      "android": { "language": "kotlin", "implementationClassName": "HybridPickerControllerRegistration" }
+    }
+  },
+  "ignorePaths": ["node_modules"]
+}

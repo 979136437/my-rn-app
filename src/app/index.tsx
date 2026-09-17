@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const entries = [
+  { path: '/picker-demo', title: '滚轮选择器', detail: '自定义选项、多列日期联动、动态数据与滚动事件。' },
   { path: '/list-demos/masonry', title: '瀑布流', detail: '动态高度、多类型卡片与双列布局。' },
   { path: '/list-demos/list', title: '普通列表', detail: '纵向列表、展开收藏与滚动观察。' },
   { path: '/list-demos/pagination', title: '分页加载', detail: '触底加载、失败重试、刷新与头尾内容。' },
@@ -18,7 +19,7 @@ export default function Index() {
   return <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
     <Stack.Screen options={{ headerShown: false }} />
     <View style={styles.heading}>
-      <Text style={styles.title}>NativeList 测试目录</Text>
+      <Text style={styles.title}>原生组件演示目录</Text>
     </View>
     <ScrollView contentContainerStyle={styles.entries}>
       <Text style={styles.description}>选择入口打开独立页面，返回后可继续其他测试。</Text>
