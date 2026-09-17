@@ -1283,16 +1283,34 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
     cancelAnimation()
     recycler.stopScroll()
     stopObserving()
+    // react-native-screens starts removal transitions recursively, including on
+    // RecyclerView's private cells. ViewGroup retains a transitioning child's
+    // parent after removeViewAt(), but RecyclerView requires a null parent before
+    // recycling it. Finish only this list's descendant transitions before adapter
+    // teardown; the navigation transition on the list itself stays screen-owned.
+    endDescendantTransitions(this)
     recycler.adapter = null
     recycler.recycledViewPool.clear()
     removeAllLogicalChildren()
     slots.clear()
     holders.clear()
     slotViews.clear()
+    pinned.clear()
+    activeGroups.clear()
     pinnedFrames.clear()
     stickyLayer.removeAllViews()
     heights.clear()
     measuredTokens.clear()
+  }
+
+  private fun endDescendantTransitions(parent: ViewGroup) {
+    // Ending a transition may dispatch detach callbacks. Snapshot the children
+    // first so callbacks cannot invalidate the traversal indices.
+    val children = (0 until parent.childCount).mapNotNull { parent.getChildAt(it) }
+    for (child in children) {
+      if (child is ViewGroup) endDescendantTransitions(child)
+      parent.endViewTransition(child)
+    }
   }
 
   private fun stopObserving() {
