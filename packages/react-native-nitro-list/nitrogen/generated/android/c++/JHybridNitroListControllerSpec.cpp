@@ -7,6 +7,8 @@
 
 #include "JHybridNitroListControllerSpec.hpp"
 
+// Forward declaration of `ScrollMetrics` to properly resolve imports.
+namespace margelo::nitro::nitrolist { struct ScrollMetrics; }
 // Forward declaration of `ListSnapshot` to properly resolve imports.
 namespace margelo::nitro::nitrolist { struct ListSnapshot; }
 // Forward declaration of `SlotBinding` to properly resolve imports.
@@ -18,6 +20,10 @@ namespace margelo::nitro::nitrolist { enum class ListLayout; }
 // Forward declaration of `ListItem` to properly resolve imports.
 namespace margelo::nitro::nitrolist { struct ListItem; }
 
+#include "ScrollMetrics.hpp"
+#include <NitroModules/Promise.hpp>
+#include <NitroModules/JPromise.hpp>
+#include "JScrollMetrics.hpp"
 #include <string>
 #include "ListSnapshot.hpp"
 #include <functional>
@@ -107,6 +113,34 @@ namespace margelo::nitro::nitrolist {
   void JHybridNitroListControllerSpec::scrollToEnd(bool animated) {
     static const auto method = _javaPart->javaClassStatic()->getMethod<void(jboolean /* animated */)>("scrollToEnd");
     method(_javaPart, animated);
+  }
+  void JHybridNitroListControllerSpec::scrollBy(double deltaY, bool animated) {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<void(double /* deltaY */, jboolean /* animated */)>("scrollBy");
+    method(_javaPart, deltaY, animated);
+  }
+  void JHybridNitroListControllerSpec::scrollToItem(const std::string& key, bool animated, const std::string& align, double offset, bool avoidHeaders) {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<void(jni::alias_ref<jni::JString> /* key */, jboolean /* animated */, jni::alias_ref<jni::JString> /* align */, double /* offset */, jboolean /* avoidHeaders */)>("scrollToItem");
+    method(_javaPart, jni::make_jstring(key), animated, jni::make_jstring(align), offset, avoidHeaders);
+  }
+  void JHybridNitroListControllerSpec::stopScroll() {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<void()>("stopScroll");
+    method(_javaPart);
+  }
+  std::shared_ptr<Promise<ScrollMetrics>> JHybridNitroListControllerSpec::getScrollMetrics() {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<jni::local_ref<JPromise::javaobject>()>("getScrollMetrics");
+    auto __result = method(_javaPart);
+    return [&]() {
+      auto __promise = Promise<ScrollMetrics>::create();
+      __result->cthis()->addOnResolvedListener([=](const jni::alias_ref<jni::JObject>& __boxedResult) {
+        auto __result = jni::static_ref_cast<JScrollMetrics>(__boxedResult);
+        __promise->resolve(__result->toCpp());
+      });
+      __result->cthis()->addOnRejectedListener([=](const jni::alias_ref<jni::JThrowable>& __throwable) {
+        jni::JniException __jniError(__throwable);
+        __promise->reject(std::make_exception_ptr(__jniError));
+      });
+      return __promise;
+    }();
   }
   void JHybridNitroListControllerSpec::disconnect() {
     static const auto method = _javaPart->javaClassStatic()->getMethod<void()>("disconnect");

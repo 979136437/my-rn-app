@@ -19,6 +19,8 @@ namespace margelo::nitro::nitrolist { struct ListSnapshot; }
 namespace margelo::nitro::nitrolist { struct ListConfig; }
 // Forward declaration of `ListItem` to properly resolve imports.
 namespace margelo::nitro::nitrolist { struct ListItem; }
+// Forward declaration of `ScrollMetrics` to properly resolve imports.
+namespace margelo::nitro::nitrolist { struct ScrollMetrics; }
 
 #include <string>
 #include "ListSnapshot.hpp"
@@ -26,6 +28,8 @@ namespace margelo::nitro::nitrolist { struct ListItem; }
 #include "ListConfig.hpp"
 #include "ListItem.hpp"
 #include <vector>
+#include "ScrollMetrics.hpp"
+#include <NitroModules/Promise.hpp>
 
 namespace margelo::nitro::nitrolist {
 
@@ -66,6 +70,10 @@ namespace margelo::nitro::nitrolist {
       virtual void reportMeasurement(const std::string& slotId, double token, double version, double width, double height) = 0;
       virtual void scrollToOffset(double offset, bool animated) = 0;
       virtual void scrollToEnd(bool animated) = 0;
+      virtual void scrollBy(double deltaY, bool animated) = 0;
+      virtual void scrollToItem(const std::string& key, bool animated, const std::string& align, double offset, bool avoidHeaders) = 0;
+      virtual void stopScroll() = 0;
+      virtual std::shared_ptr<Promise<ScrollMetrics>> getScrollMetrics() = 0;
       virtual void disconnect() = 0;
 
     protected:

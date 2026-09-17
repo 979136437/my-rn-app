@@ -22,6 +22,10 @@ namespace margelo::nitro::nitrolist {
       prototype.registerHybridMethod("reportMeasurement", &HybridNitroListControllerSpec::reportMeasurement);
       prototype.registerHybridMethod("scrollToOffset", &HybridNitroListControllerSpec::scrollToOffset);
       prototype.registerHybridMethod("scrollToEnd", &HybridNitroListControllerSpec::scrollToEnd);
+      prototype.registerHybridMethod("scrollBy", &HybridNitroListControllerSpec::scrollBy);
+      prototype.registerHybridMethod("scrollToItem", &HybridNitroListControllerSpec::scrollToItem);
+      prototype.registerHybridMethod("stopScroll", &HybridNitroListControllerSpec::stopScroll);
+      prototype.registerHybridMethod("getScrollMetrics", &HybridNitroListControllerSpec::getScrollMetrics);
       prototype.registerHybridMethod("disconnect", &HybridNitroListControllerSpec::disconnect);
     });
   }

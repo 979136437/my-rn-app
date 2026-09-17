@@ -19,6 +19,25 @@ export type NativeViewableItemsEvent = Readonly<{
 
 export interface NativeProps extends ViewProps {
   listId: string;
+  onScrollMetrics?: CodegenTypes.DirectEventHandler<Readonly<{
+    offsetY: CodegenTypes.Double;
+    pullDistance: CodegenTypes.Double;
+    viewportHeight: CodegenTypes.Double;
+    contentHeight: CodegenTypes.Double;
+    maxOffsetY: CodegenTypes.Double;
+    scrollState: string;
+    isAtStart: boolean;
+    isAtEnd: boolean;
+    headerBottom: CodegenTypes.Double;
+    stickyTop: CodegenTypes.Double;
+    isOffsetEstimated: boolean;
+    isContentSizeEstimated: boolean;
+    timestamp: CodegenTypes.Double;
+  }>>;
+  onStickyHeaderChange?: CodegenTypes.DirectEventHandler<Readonly<{
+    group: string; level: CodegenTypes.Double; previousKey: string; key: string;
+  }>>;
+  onScrollToItemFailed?: CodegenTypes.DirectEventHandler<Readonly<{ key: string; reason: string }>>;
   onListScroll?: CodegenTypes.DirectEventHandler<NativeListScrollEvent>;
   onListScrollStateChange?: CodegenTypes.DirectEventHandler<NativeListScrollEvent>;
   onViewableItemsChange?: CodegenTypes.DirectEventHandler<NativeViewableItemsEvent>;

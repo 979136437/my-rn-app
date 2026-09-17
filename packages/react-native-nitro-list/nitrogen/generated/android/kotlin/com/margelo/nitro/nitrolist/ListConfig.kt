@@ -80,7 +80,34 @@ data class ListConfig(
   val waitForInteraction: Boolean,
   @DoNotStrip
   @Keep
-  val viewabilityEpoch: Double
+  val viewabilityEpoch: Double,
+  @DoNotStrip
+  @Keep
+  val fixedHeaderHeight: Double,
+  @DoNotStrip
+  @Keep
+  val fixedHeaderMode: String,
+  @DoNotStrip
+  @Keep
+  val refreshPlacement: String,
+  @DoNotStrip
+  @Keep
+  val refreshRevealMode: String,
+  @DoNotStrip
+  @Keep
+  val refreshOffset: Double,
+  @DoNotStrip
+  @Keep
+  val stickyHeaderAnchor: String,
+  @DoNotStrip
+  @Keep
+  val stickyHeaderOffset: Double,
+  @DoNotStrip
+  @Keep
+  val stickyHeaderFollowRefresh: Boolean,
+  @DoNotStrip
+  @Keep
+  val metricsEnabled: Boolean
 ) {
   /* primary constructor */
 
@@ -108,6 +135,15 @@ data class ListConfig(
       && Objects.deepEquals(this.minimumViewTime, other.minimumViewTime)
       && Objects.deepEquals(this.waitForInteraction, other.waitForInteraction)
       && Objects.deepEquals(this.viewabilityEpoch, other.viewabilityEpoch)
+      && Objects.deepEquals(this.fixedHeaderHeight, other.fixedHeaderHeight)
+      && Objects.deepEquals(this.fixedHeaderMode, other.fixedHeaderMode)
+      && Objects.deepEquals(this.refreshPlacement, other.refreshPlacement)
+      && Objects.deepEquals(this.refreshRevealMode, other.refreshRevealMode)
+      && Objects.deepEquals(this.refreshOffset, other.refreshOffset)
+      && Objects.deepEquals(this.stickyHeaderAnchor, other.stickyHeaderAnchor)
+      && Objects.deepEquals(this.stickyHeaderOffset, other.stickyHeaderOffset)
+      && Objects.deepEquals(this.stickyHeaderFollowRefresh, other.stickyHeaderFollowRefresh)
+      && Objects.deepEquals(this.metricsEnabled, other.metricsEnabled)
   }
 
   override fun hashCode(): Int {
@@ -132,7 +168,16 @@ data class ListConfig(
       itemVisiblePercentThreshold,
       minimumViewTime,
       waitForInteraction,
-      viewabilityEpoch
+      viewabilityEpoch,
+      fixedHeaderHeight,
+      fixedHeaderMode,
+      refreshPlacement,
+      refreshRevealMode,
+      refreshOffset,
+      stickyHeaderAnchor,
+      stickyHeaderOffset,
+      stickyHeaderFollowRefresh,
+      metricsEnabled
     ).contentDeepHashCode()
   }
 
@@ -144,8 +189,8 @@ data class ListConfig(
     @Keep
     @Suppress("unused")
     @JvmStatic
-    private fun fromCpp(layout: ListLayout, numColumns: Double, gap: Double, estimatedItemSize: Double, refreshEnabled: Boolean, refreshHeaderHeight: Double, refreshThreshold: Double, paddingTop: Double, paddingRight: Double, paddingBottom: Double, paddingLeft: Double, endReachedEnabled: Boolean, endReachedThreshold: Double, endReachedEpoch: Double, scrollEventsEnabled: Boolean, scrollEventThrottle: Double, viewabilityEnabled: Boolean, itemVisiblePercentThreshold: Double, minimumViewTime: Double, waitForInteraction: Boolean, viewabilityEpoch: Double): ListConfig {
-      return ListConfig(layout, numColumns, gap, estimatedItemSize, refreshEnabled, refreshHeaderHeight, refreshThreshold, paddingTop, paddingRight, paddingBottom, paddingLeft, endReachedEnabled, endReachedThreshold, endReachedEpoch, scrollEventsEnabled, scrollEventThrottle, viewabilityEnabled, itemVisiblePercentThreshold, minimumViewTime, waitForInteraction, viewabilityEpoch)
+    private fun fromCpp(layout: ListLayout, numColumns: Double, gap: Double, estimatedItemSize: Double, refreshEnabled: Boolean, refreshHeaderHeight: Double, refreshThreshold: Double, paddingTop: Double, paddingRight: Double, paddingBottom: Double, paddingLeft: Double, endReachedEnabled: Boolean, endReachedThreshold: Double, endReachedEpoch: Double, scrollEventsEnabled: Boolean, scrollEventThrottle: Double, viewabilityEnabled: Boolean, itemVisiblePercentThreshold: Double, minimumViewTime: Double, waitForInteraction: Boolean, viewabilityEpoch: Double, fixedHeaderHeight: Double, fixedHeaderMode: String, refreshPlacement: String, refreshRevealMode: String, refreshOffset: Double, stickyHeaderAnchor: String, stickyHeaderOffset: Double, stickyHeaderFollowRefresh: Boolean, metricsEnabled: Boolean): ListConfig {
+      return ListConfig(layout, numColumns, gap, estimatedItemSize, refreshEnabled, refreshHeaderHeight, refreshThreshold, paddingTop, paddingRight, paddingBottom, paddingLeft, endReachedEnabled, endReachedThreshold, endReachedEpoch, scrollEventsEnabled, scrollEventThrottle, viewabilityEnabled, itemVisiblePercentThreshold, minimumViewTime, waitForInteraction, viewabilityEpoch, fixedHeaderHeight, fixedHeaderMode, refreshPlacement, refreshRevealMode, refreshOffset, stickyHeaderAnchor, stickyHeaderOffset, stickyHeaderFollowRefresh, metricsEnabled)
     }
   }
 }

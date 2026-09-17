@@ -62,6 +62,10 @@ namespace margelo::nitro::nitrolist {
     void reportMeasurement(const std::string& slotId, double token, double version, double width, double height) override;
     void scrollToOffset(double offset, bool animated) override;
     void scrollToEnd(bool animated) override;
+    void scrollBy(double deltaY, bool animated) override;
+    void scrollToItem(const std::string& key, bool animated, const std::string& align, double offset, bool avoidHeaders) override;
+    void stopScroll() override;
+    std::shared_ptr<Promise<ScrollMetrics>> getScrollMetrics() override;
     void disconnect() override;
 
   private:

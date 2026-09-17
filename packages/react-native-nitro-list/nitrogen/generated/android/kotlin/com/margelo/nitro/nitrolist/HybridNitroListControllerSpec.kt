@@ -11,6 +11,7 @@ import androidx.annotation.Keep
 import com.facebook.jni.HybridData
 import com.facebook.proguard.annotations.DoNotStrip
 import dalvik.annotation.optimization.FastNative
+import com.margelo.nitro.core.Promise
 import com.margelo.nitro.core.HybridObject
 
 /**
@@ -65,6 +66,22 @@ abstract class HybridNitroListControllerSpec: HybridObject() {
   @DoNotStrip
   @Keep
   abstract fun scrollToEnd(animated: Boolean): Unit
+  
+  @DoNotStrip
+  @Keep
+  abstract fun scrollBy(deltaY: Double, animated: Boolean): Unit
+  
+  @DoNotStrip
+  @Keep
+  abstract fun scrollToItem(key: String, animated: Boolean, align: String, offset: Double, avoidHeaders: Boolean): Unit
+  
+  @DoNotStrip
+  @Keep
+  abstract fun stopScroll(): Unit
+  
+  @DoNotStrip
+  @Keep
+  abstract fun getScrollMetrics(): Promise<ScrollMetrics>
   
   @DoNotStrip
   @Keep

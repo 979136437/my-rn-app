@@ -5,6 +5,11 @@ export interface ListItem {
   type: string;
   version: number;
   fullSpan: boolean;
+  role: string;
+  stickyGroup: string;
+  stickyLevel: number;
+  stickyTransition: string;
+  stickyEndKey: string;
 }
 
 export type ListLayout = 'list' | 'masonry';
@@ -31,6 +36,31 @@ export interface ListConfig {
   minimumViewTime: number;
   waitForInteraction: boolean;
   viewabilityEpoch: number;
+  fixedHeaderHeight: number;
+  fixedHeaderMode: string;
+  refreshPlacement: string;
+  refreshRevealMode: string;
+  refreshOffset: number;
+  stickyHeaderAnchor: string;
+  stickyHeaderOffset: number;
+  stickyHeaderFollowRefresh: boolean;
+  metricsEnabled: boolean;
+}
+
+export interface ScrollMetrics {
+  offsetY: number;
+  pullDistance: number;
+  viewportHeight: number;
+  contentHeight: number;
+  maxOffsetY: number;
+  scrollState: string;
+  isAtStart: boolean;
+  isAtEnd: boolean;
+  headerBottom: number;
+  stickyTop: number;
+  isOffsetEstimated: boolean;
+  isContentSizeEstimated: boolean;
+  timestamp: number;
 }
 
 export interface SlotBinding {
@@ -58,5 +88,13 @@ export interface NitroListController extends HybridObject<{ android: 'kotlin' }>
   reportMeasurement(slotId: string, token: number, version: number, width: number, height: number): void;
   scrollToOffset(offset: number, animated: boolean): void;
   scrollToEnd(animated: boolean): void;
+  /** Move relative to the current scroll position, in dp. */
+  scrollBy(deltaY: number, animated: boolean): void;
+  /** Seek a stable internal item key and correct after its layout is measured. */
+  scrollToItem(key: string, animated: boolean, align: string, offset: number, avoidHeaders: boolean): void;
+  /** Stop native scrolling and cancel pending item alignment. */
+  stopScroll(): void;
+  /** Capture metrics on the Android UI thread. */
+  getScrollMetrics(): Promise<ScrollMetrics>;
   disconnect(): void;
 }

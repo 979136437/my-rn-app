@@ -23,7 +23,7 @@ In the output, you'll find options to open the app in a
 - [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
 - [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
 ## pnpm workspace
 
@@ -40,6 +40,25 @@ own `package.json`. Declare local package dependencies with `workspace:*`.
 Run `pnpm install` from the workspace root to install dependencies for all packages.
 Use `pnpm --filter <package-name> <script>` to run a script in a specific package.
 
+## Android 原生列表与功能测试
+
+Workspace 包 [react-native-nitro-list](packages/react-native-nitro-list/README.md)
+公开 `NativeList`、`NativeSectionList`、`useListContext` 和 `useRecyclingState`。
+支持动态高度列表/瀑布流、固定头部占位或覆盖、分组与多层同层互斥吸顶、
+头部上下方刷新、滚动定位，以及通过 SharedValue 实现透明头部变色。
+包名和内部 Fabric/Nitro 原生注册名保持不变；原 `NitroList` 公开入口更名为 `NativeList`，
+相关公开类型改为 `NativeList*`，分组组件类型为 `NativeSectionList*`。
+
+应用实际路由目录是 `src/app`。首页改为入口目录，原瀑布流、普通列表、分页、短列表、空列表、1,000 条、10,000 条选项分别打开 `src/app/list-demos` 下的独立页面，并提供“列表功能测试”入口，
+打开 `/nitro-list-tests` 测试目录，分别进入头部与刷新、分组与吸顶、Hook 与透明头部、平面列表定位、分组列表定位五个独立页面。
+测试页面使用本地数据，提供模式开关、操作说明、事件日志、指标和场景重置。
+同场景配置切换保留列表实例，便于观察动态布局问题；Expo Go、iOS 和 Web 显示不可用说明。
+
+需要包含自定义原生包的 Android development build。更新原生代码后需要由开发者
+明确执行重新构建，Metro 热更新不能替代。当前未执行原生编译或设备验收；
+交互测试页面及静态检查不代表手势、吸顶复用、定位精度和性能已经通过验收。
+完整 API、示例、坐标规则及待验收清单见包 README。
+
 ## Android 组件曝光
 
 Workspace 包 [react-native-nitro-viewability](packages/react-native-nitro-viewability/README.md)
@@ -52,7 +71,7 @@ Android 窗口失焦（例如通知栏导致失焦）或宿主暂停时通知不
 恢复获焦后重新判断；路由焦点仍需通过 `active` 传入，恢复播放由业务决定。
 
 演示页包含包装广告、Hook 按钮、暂停 / 恢复开关与重新进入计数，同时保留
-NitroList 的 `onViewableItemsChanged`。独立观察按面积计算；NitroList 复用同一
+NativeList 的 `onViewableItemsChanged`。独立观察按面积计算；NativeList 复用同一
 Kotlin tracker，但保留列表垂直可见高度比例、槽位版本与业务索引语义。
 观察不识别兄弟浮层、圆角或任意形状的像素遮挡。
 

@@ -9,6 +9,7 @@ import com.facebook.react.views.view.ReactViewGroup
 class NitroListSlotView(context: ThemedReactContext) : ReactViewGroup(context) {
   var listId: String = ""
   var slotId: String = ""
+  var accessoryRole: String = ""
   var bindingToken: Double = -1.0
   var itemVersion: Double = -1.0
   private var stateWrapper: StateWrapper? = null

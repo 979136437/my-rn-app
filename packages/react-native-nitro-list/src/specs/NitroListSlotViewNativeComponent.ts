@@ -4,6 +4,7 @@ import type { CodegenTypes, HostComponent, ViewProps } from 'react-native';
 export interface NativeProps extends ViewProps {
   listId: string;
   slotId: string;
+  accessoryRole: string;
   bindingToken: CodegenTypes.Double;
   itemVersion: CodegenTypes.Double;
 }

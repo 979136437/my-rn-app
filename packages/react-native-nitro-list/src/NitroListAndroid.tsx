@@ -8,10 +8,11 @@ import type { LayoutChangeEvent, NativeSyntheticEvent } from 'react-native';
 import { NitroModules } from 'react-native-nitro-modules';
 import Animated, { useEvent, useSharedValue } from 'react-native-reanimated';
 import NativeList from './specs/NitroListViewNativeComponent';
+import type { NativeListScrollMetrics, ScrollToItemOptions, ScrollToItemFailure } from './types';
 import type { NativeListScrollEvent, NativeViewableItemsEvent } from './specs/NitroListViewNativeComponent';
 import NativeSlot from './specs/NitroListSlotViewNativeComponent';
 import type { ListConfig, ListItem, ListSnapshot, NitroListController, SlotBinding } from './specs/NitroListController.nitro';
-import type { NitroListAccessory, NitroListContentStyle, NitroListDiagnostics, NitroListProps, NitroListRef, NitroListScrollInfo, NitroListScrollState, NitroListViewToken, RefreshState } from './types';
+import type { NativeListAccessory, NativeListContentStyle, NativeListDiagnostics, NativeListProps, NativeListRef, NativeListScrollInfo, NativeListScrollState, NativeListViewToken, RefreshState } from './types';
 import { RecyclingKeyContext } from './useRecyclingState';
 
 const AnimatedNativeList = Animated.createAnimatedComponent(NativeList);
@@ -24,7 +25,7 @@ let nextDataVersion = 0;
 
 type Entry<T> = { descriptor: ListItem } & (
   | { kind: 'item'; item: T; index: number; itemKey: string }
-  | { kind: 'accessory'; component: NitroListAccessory }
+  | { kind: 'accessory'; component: NativeListAccessory }
 );
 interface RenderSlot<T> extends SlotBinding { entry: Entry<T> }
 interface Dataset<T> {
@@ -36,8 +37,8 @@ interface Dataset<T> {
 }
 
 const paddingKeys = new Set(['padding', 'paddingHorizontal', 'paddingVertical', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft']);
-function resolvePadding(style: NitroListProps<unknown>['contentContainerStyle']) {
-  const flat: NitroListContentStyle = StyleSheet.flatten(style) ?? {};
+function resolvePadding(style: NativeListProps<unknown>['contentContainerStyle']) {
+  const flat: NativeListContentStyle = StyleSheet.flatten(style) ?? {};
   for (const [key, value] of Object.entries(flat)) {
     if (!paddingKeys.has(key)) throw new Error(`NitroList contentContainerStyle does not support ${key}.`);
     if (value !== undefined && (typeof value !== 'number' || !Number.isFinite(value) || value < 0)) {
@@ -52,7 +53,7 @@ function resolvePadding(style: NitroListProps<unknown>['contentContainerStyle'])
   };
 }
 
-function accessory(component: NitroListAccessory) {
+function accessory(component: NativeListAccessory) {
   return component == null || isValidElement(component) ? component : createElement(component);
 }
 
@@ -60,12 +61,12 @@ function positive(name: string, value: number) {
   if (!Number.isFinite(value) || value <= 0) throw new Error(`NitroList ${name} must be a positive finite number.`);
 }
 
-function scrollInfo(event: NativeListScrollEvent): NitroListScrollInfo {
+function scrollInfo(event: NativeListScrollEvent): NativeListScrollInfo {
   return {
     contentOffset: { x: 0, y: event.offsetY },
     contentSize: { width: event.viewportWidth, height: event.contentHeight },
     layoutMeasurement: { width: event.viewportWidth, height: event.viewportHeight },
-    state: event.state as NitroListScrollState,
+    state: event.state as NativeListScrollState,
     timestamp: event.timestamp,
   };
 }
@@ -74,7 +75,7 @@ function Slot<T>({ slot, listId, width, renderItem, controller, onMount }: {
   slot: RenderSlot<T>;
   listId: string;
   width: number;
-  renderItem: NitroListProps<T>['renderItem'];
+  renderItem: NativeListProps<T>['renderItem'];
   controller: RefObject<NitroListController | null>;
   onMount: () => void;
 }) {
@@ -101,6 +102,7 @@ function Slot<T>({ slot, listId, width, renderItem, controller, onMount }: {
     <NativeSlot
       listId={listId}
       slotId={slotId}
+      accessoryRole=""
       bindingToken={token}
       itemVersion={version}
       collapsable={false}
@@ -132,10 +134,16 @@ function NitroListAndroid<T>({
   onScroll, onScrollStateChange, onScrollBeginDrag, onScrollEndDrag,
   onMomentumScrollBegin, onMomentumScrollEnd, scrollEventThrottle = 16,
   viewabilityConfig, onViewableItemsChanged,
-}: NitroListProps<T>, ref: ForwardedRef<NitroListRef>) {
+  getItemLayout, getStickyConfig, FixedHeaderComponent, fixedHeaderMode = 'inset',
+  refreshPlacement = 'belowHeader', refreshRevealMode = 'push', refreshOffset = 0,
+  stickyHeaderAnchor = 'headerBottom', stickyHeaderOffset = 0, stickyHeaderFollowRefresh = true,
+  scrollBinding, onStickyHeaderChange, onScrollToItemFailed, onRefreshStateChange: onRefreshState,
+}: NativeListProps<T>, ref: ForwardedRef<NativeListRef>) {
   positive('estimatedItemSize', estimatedItemSize);
   positive('refreshHeaderHeight', refreshHeaderHeight);
   positive('refreshThreshold', refreshThreshold);
+  if (!Number.isFinite(refreshOffset) || refreshOffset < 0) throw new Error('refreshOffset must be finite and nonnegative.');
+  if (!Number.isFinite(stickyHeaderOffset)) throw new Error('stickyHeaderOffset must be finite.');
   if (!Number.isInteger(numColumns) || numColumns < 1) throw new Error('NitroList numColumns must be a positive integer.');
   if (!Number.isFinite(gap) || gap < 0) throw new Error('NitroList gap must be a nonnegative finite number.');
   if (!Number.isFinite(onEndReachedThreshold) || onEndReachedThreshold < 0) throw new Error('NitroList onEndReachedThreshold must be a nonnegative finite number.');
@@ -159,6 +167,8 @@ function NitroListAndroid<T>({
   const controller = useRef<NitroListController | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const [width, setWidth] = useState(0);
+  const [measuredFixedHeight, setFixedHeight] = useState(0);
+  const fixedHeaderHeight = FixedHeaderComponent == null ? 0 : measuredFixedHeight;
   const [slots, setSlots] = useState<RenderSlot<T>[]>([]);
   const [refreshState, setRefreshState] = useState<RefreshState>(refreshing ? 'refreshing' : 'idle');
   const pullDistance = useSharedValue(0);
@@ -170,12 +180,13 @@ function NitroListAndroid<T>({
     onScroll, onScrollStateChange, onScrollBeginDrag, onScrollEndDrag,
     onMomentumScrollBegin, onMomentumScrollEnd, onViewableItemsChanged, viewabilityEpoch,
   });
-  const viewableItems = useRef(new Map<string, NitroListViewToken<T>>());
+  const viewableItems = useRef(new Map<string, NativeListViewToken<T>>());
   const receivedViewability = useRef(false);
-  const lastDiagnostics = useRef<NitroListDiagnostics | null>(null);
+  const lastDiagnostics = useRef<NativeListDiagnostics | null>(null);
   const renderedSlots = useRef(slots);
   const diagnosticsScheduled = useRef<ReturnType<typeof setTimeout> | null>(null);
   const committedData = useRef<Dataset<T> | null>(null);
+  const featureCallbacks = useRef({ onStickyHeaderChange, onScrollToItemFailed, onRefreshState });
 
   const config = useMemo<ListConfig>(() => ({
     layout, numColumns: columns, gap, estimatedItemSize,
@@ -184,14 +195,20 @@ function NitroListAndroid<T>({
     endReachedEnabled, endReachedThreshold: onEndReachedThreshold, endReachedEpoch,
     scrollEventsEnabled, scrollEventThrottle, viewabilityEnabled,
     itemVisiblePercentThreshold, minimumViewTime, waitForInteraction, viewabilityEpoch,
+    fixedHeaderHeight, fixedHeaderMode, refreshPlacement, refreshRevealMode, refreshOffset,
+    stickyHeaderAnchor, stickyHeaderOffset, stickyHeaderFollowRefresh, metricsEnabled: !!scrollBinding,
   }), [layout, columns, gap, estimatedItemSize, !!onRefresh, refreshHeaderHeight, refreshThreshold,
     paddingTop, paddingRight, paddingBottom, paddingLeft, endReachedEnabled, onEndReachedThreshold, endReachedEpoch,
-    scrollEventsEnabled, scrollEventThrottle, viewabilityEnabled, itemVisiblePercentThreshold, minimumViewTime, waitForInteraction, viewabilityEpoch]);
+    scrollEventsEnabled, scrollEventThrottle, viewabilityEnabled, itemVisiblePercentThreshold, minimumViewTime, waitForInteraction, viewabilityEpoch,
+    fixedHeaderHeight, fixedHeaderMode, refreshPlacement, refreshRevealMode, refreshOffset, stickyHeaderAnchor,
+    stickyHeaderOffset, stickyHeaderFollowRefresh, !!scrollBinding]);
 
   const dataset = useMemo(() => {
     const previous = committedData.current;
     const sameExtraData = previous !== null && Object.is(previous.extraData, extraData);
     const entries = new Map<string, Entry<T>>();
+    const levels = new Map<number, string>();
+    const groups = new Map<string, number>();
     const descriptors = data.map((item, index): ListItem => {
       const itemKey = keyExtractor(item, index);
       const key = `item:${itemKey}`;
@@ -199,37 +216,60 @@ function NitroListAndroid<T>({
         throw new Error(`NitroList keyExtractor must return unique strings; invalid or duplicate key: ${String(itemKey)}`);
       }
       const rawType = getItemType?.(item, index) ?? 'default';
+      const itemLayout = getItemLayout?.(item, index);
+      const sticky = getStickyConfig?.(item, index);
+      const level = sticky?.level ?? 0;
+      if (sticky) {
+        if (!sticky.group || !Number.isInteger(level) || level < 0) throw new Error('Sticky group must be nonempty and level a nonnegative integer.');
+        if ((levels.has(level) && levels.get(level) !== sticky.group) || (groups.has(sticky.group) && groups.get(sticky.group) !== level)) {
+          throw new Error('Each sticky level must have exactly one group, and each group one level.');
+        }
+        levels.set(level, sticky.group); groups.set(sticky.group, level);
+      }
+      const metadata = {
+        fullSpan: !!sticky || !!itemLayout?.fullSpan,
+        role: itemLayout?.role ?? 'item',
+        stickyGroup: sticky?.group ?? '', stickyLevel: level,
+        stickyTransition: sticky?.transition ?? 'push', stickyEndKey: sticky?.endAtKey === undefined ? '' : `item:${sticky.endAtKey}`,
+      };
       // Keep numeric and string type namespaces distinct (1 is not "1").
-      const type = `item:${typeof rawType}:${rawType}`;
+      const type = `item:${typeof rawType}:${rawType}:${metadata.fullSpan ? 'full' : 'cell'}`;
       const old = previous?.entries.get(key);
       // renderItem receives index: a move can change content/height even when
       // the item object is unchanged. Reject measurements from its old position.
-      const descriptor = old?.kind === 'item' && sameExtraData && Object.is(old.item, item) && old.index === index && old.descriptor.type === type
+      const descriptor = old?.kind === 'item' && sameExtraData && Object.is(old.item, item) && old.index === index && old.descriptor.type === type &&
+        Object.entries(metadata).every(([name, value]) => old.descriptor[name as keyof ListItem] === value)
         ? old.descriptor
-        : { key, type, version: ++nextDataVersion, fullSpan: false };
+        : { key, type, version: ++nextDataVersion, ...metadata };
       entries.set(key, { kind: 'item', item, itemKey, index, descriptor });
       return descriptor;
     });
-    const tailKey = descriptors.at(-1)?.key ?? '';
-    const addAccessory = (name: string, component: NitroListAccessory | undefined, atStart = false) => {
+    const businessItems = descriptors.filter(item => item.role === 'item');
+    const tailKey = businessItems.at(-1)?.key ?? '';
+    for (const [index, descriptor] of descriptors.entries()) {
+      if (descriptor.stickyEndKey && descriptors.findIndex(item => item.key === descriptor.stickyEndKey) <= index) {
+        throw new Error('Sticky endAtKey must identify a following data item.');
+      }
+    }
+    const addAccessory = (name: string, component: NativeListAccessory | undefined, atStart = false) => {
       if (component == null) return;
       const key = `accessory:${name}`;
       const old = previous?.entries.get(key);
       const descriptor = old?.kind === 'accessory' && sameExtraData && Object.is(old.component, component)
         ? old.descriptor
-        : { key, type: key, version: ++nextDataVersion, fullSpan: true };
+        : { key, type: key, version: ++nextDataVersion, fullSpan: true, role: 'accessory', stickyGroup: '', stickyLevel: 0, stickyTransition: 'push', stickyEndKey: '' };
       entries.set(key, { kind: 'accessory', component, descriptor });
       if (atStart) descriptors.unshift(descriptor); else descriptors.push(descriptor);
     };
     addAccessory('header', ListHeaderComponent, true);
-    if (data.length === 0) addAccessory('empty', ListEmptyComponent);
+    if (businessItems.length === 0) addAccessory('empty', ListEmptyComponent);
     addAccessory('footer', ListFooterComponent);
     if (previous && sameExtraData && descriptors.length === previous.descriptors.length &&
         descriptors.every((descriptor, index) => descriptor === previous.descriptors[index])) {
       return previous;
     }
-    return { entries, descriptors, extraData, dataCount: data.length, tailKey };
-  }, [data, keyExtractor, getItemType, extraData, ListHeaderComponent, ListFooterComponent, ListEmptyComponent]);
+    return { entries, descriptors, extraData, dataCount: businessItems.length, tailKey };
+  }, [data, keyExtractor, getItemType, getItemLayout, getStickyConfig, extraData, ListHeaderComponent, ListFooterComponent, ListEmptyComponent]);
 
   const scheduleDiagnostics = useCallback(() => {
     if (diagnosticsScheduled.current !== null || !mounted.current) return;
@@ -238,13 +278,13 @@ function NitroListAndroid<T>({
       diagnosticsScheduled.current = null;
       if (!mounted.current) return;
       const currentSlots = renderedSlots.current;
-      const value: NitroListDiagnostics = {
+      const value: NativeListDiagnostics = {
         ...stats.current,
         mountedSlots: currentSlots.length,
         activeSlots: currentSlots.filter((slot) => slot.active).length,
       };
       const last = lastDiagnostics.current;
-      if (!last || (Object.keys(value) as (keyof NitroListDiagnostics)[]).some(key => value[key] !== last[key])) {
+      if (!last || (Object.keys(value) as (keyof NativeListDiagnostics)[]).some(key => value[key] !== last[key])) {
         lastDiagnostics.current = value;
         callbacks.current.onDiagnostics?.(value);
       }
@@ -285,6 +325,7 @@ function NitroListAndroid<T>({
 
   useLayoutEffect(() => {
     committedData.current = dataset;
+    featureCallbacks.current = { onStickyHeaderChange, onScrollToItemFailed, onRefreshState };
     callbacks.current = { onRefresh, onDiagnostics, onEndReached, endReachedEnabled, endReachedEpoch };
     observationCallbacks.current = {
       onScroll, onScrollStateChange, onScrollBeginDrag, onScrollEndDrag,
@@ -326,13 +367,71 @@ function NitroListAndroid<T>({
   useLayoutEffect(() => { controller.current?.setRefreshing(refreshing); }, [refreshing]);
   useEffect(scheduleDiagnostics, [slots, scheduleDiagnostics]);
 
-  useImperativeHandle(ref, () => ({
+  const commands = useMemo<NativeListRef>(() => {
+    const connected = () => {
+      if (!mounted.current || !controller.current) throw new Error('NativeList is not connected.');
+      return controller.current;
+    };
+    const locate = (key: string, options: ScrollToItemOptions) => {
+      const native = connected();
+      const { animated = true, align = 'start', offset = 0, avoidHeaders = true } = options;
+      if (!Number.isFinite(offset)) throw new Error('Item alignment offset must be finite.');
+      if (!['start', 'center', 'end'].includes(align)) throw new Error('Invalid item alignment.');
+      if (!committedData.current?.entries.has(`item:${key}`)) {
+        featureCallbacks.current.onScrollToItemFailed?.({ key, reason: 'invalid-target' });
+        return;
+      }
+      native.scrollToItem(`item:${key}`, animated, align, offset, avoidHeaders);
+    };
+    return {
     scrollToOffset({ offset, animated = true }) {
       if (!Number.isFinite(offset) || offset < 0) throw new Error('NitroList scroll offset must be nonnegative and finite.');
       controller.current?.scrollToOffset(offset, animated);
     },
     scrollToEnd({ animated = true } = {}) { controller.current?.scrollToEnd(animated); },
-  }), []);
+    scrollToTop({ animated = true } = {}) { connected().scrollToOffset(0, animated); },
+    scrollBy({ deltaY, animated = true }) {
+      if (!Number.isFinite(deltaY)) throw new Error('deltaY must be finite.');
+      connected().scrollBy(deltaY, animated);
+    },
+    scrollToKey({ key, ...options }) { locate(key, options); },
+    scrollToIndex({ index, ...options }) {
+      connected();
+      const entry = [...(committedData.current?.entries.values() ?? [])].find(entry => entry.kind === 'item' && entry.index === index);
+      if (!Number.isInteger(index) || entry?.kind !== 'item') {
+        featureCallbacks.current.onScrollToItemFailed?.({ index, reason: 'invalid-target' });
+        return;
+      }
+      locate(entry.itemKey, options);
+    },
+    stopScroll() { connected().stopScroll(); },
+    async getScrollMetrics() {
+      const metrics = await connected().getScrollMetrics();
+      return { ...metrics, scrollState: metrics.scrollState as NativeListScrollMetrics['scrollState'] };
+    },
+  }; }, []);
+  useImperativeHandle(ref, () => commands, [commands]);
+  useLayoutEffect(() => scrollBinding?.attach(listId, commands), [scrollBinding, listId, commands]);
+
+  // Capture only shareable metric values, never the binding's JS command closures.
+  const metricValues = scrollBinding?.values;
+  const onScrollMetrics = useEvent<NativeSyntheticEvent<Omit<NativeListScrollMetrics, 'scrollState'> & { scrollState: string }>>((event) => {
+    'worklet';
+    if (!metricValues) return;
+    metricValues.offsetY.value = event.offsetY;
+    metricValues.pullDistance.value = event.pullDistance;
+    metricValues.viewportHeight.value = event.viewportHeight;
+    metricValues.contentHeight.value = event.contentHeight;
+    metricValues.maxOffsetY.value = event.maxOffsetY;
+    metricValues.scrollState.value = event.scrollState as NativeListScrollMetrics['scrollState'];
+    metricValues.isAtStart.value = event.isAtStart;
+    metricValues.isAtEnd.value = event.isAtEnd;
+    metricValues.headerBottom.value = event.headerBottom;
+    metricValues.stickyTop.value = event.stickyTop;
+    metricValues.isOffsetEstimated.value = event.isOffsetEstimated;
+    metricValues.isContentSizeEstimated.value = event.isContentSizeEstimated;
+    metricValues.timestamp.value = event.timestamp;
+  }, ['onScrollMetrics'], true);
 
   const onPullProgress = useEvent<NativeSyntheticEvent<{ distance: number; progress: number }>>((event) => {
     'worklet';
@@ -342,7 +441,10 @@ function NitroListAndroid<T>({
 
   const onRefreshStateChange = useCallback((event: NativeSyntheticEvent<{ state: string }>) => {
     const state = event.nativeEvent.state as RefreshState;
-    if (refreshStates.has(state)) setRefreshState(state);
+    if (refreshStates.has(state)) {
+      setRefreshState(state);
+      featureCallbacks.current.onRefreshState?.(state);
+    }
   }, []);
   const onRefreshRequested = useCallback(() => { callbacks.current.onRefresh?.(); }, []);
   const onNativeEndReached = useCallback((event: NativeSyntheticEvent<{ dataCount: number; tailKey: string; epoch: number; requestId: number }>) => {
@@ -375,7 +477,7 @@ function NitroListAndroid<T>({
   const onNativeViewableItemsChange = useCallback((event: NativeSyntheticEvent<NativeViewableItemsEvent>) => {
     const handlers = observationCallbacks.current;
     if (!mounted.current || !handlers.onViewableItemsChanged || event.nativeEvent.epoch !== handlers.viewabilityEpoch) return;
-    const next = new Map<string, NitroListViewToken<T>>();
+    const next = new Map<string, NativeListViewToken<T>>();
     for (const candidate of event.nativeEvent.items) {
       const entry = committedData.current?.entries.get(candidate.key);
       // A snapshot is authoritative only when every candidate belongs to this
@@ -383,7 +485,7 @@ function NitroListAndroid<T>({
       if (entry?.kind !== 'item' || entry.descriptor.version !== candidate.version) return;
       next.set(entry.itemKey, { item: entry.item, key: entry.itemKey, index: entry.index, isViewable: true });
     }
-    const changed: NitroListViewToken<T>[] = [];
+    const changed: NativeListViewToken<T>[] = [];
     for (const [key, previous] of viewableItems.current) {
       if (!next.has(key)) changed.push({ ...previous, isViewable: false });
     }
@@ -421,15 +523,35 @@ function NitroListAndroid<T>({
       onListScroll={onNativeScroll}
       onListScrollStateChange={onNativeScrollStateChange}
       onViewableItemsChange={onNativeViewableItemsChange}
+      onScrollMetrics={onScrollMetrics}
+      onStickyHeaderChange={(event) => {
+        if (!mounted.current) return;
+        const { group, level, previousKey, key } = event.nativeEvent;
+        featureCallbacks.current.onStickyHeaderChange?.({ group, level,
+          previousKey: previousKey ? previousKey.replace(/^item:/, '') : null,
+          key: key ? key.replace(/^item:/, '') : null });
+      }}
+      onScrollToItemFailed={(event) => {
+        if (!mounted.current) return;
+        const { key, reason } = event.nativeEvent;
+        featureCallbacks.current.onScrollToItemFailed?.({ key: key.replace(/^item:/, ''), reason: reason as ScrollToItemFailure['reason'] });
+      }}
     >
-      <View collapsable={false} style={[styles.header, { width, height: refreshHeaderHeight }]}>
+      <NativeSlot listId={listId} slotId="refresh-header" accessoryRole="refresh" bindingToken={0} itemVersion={0}
+        collapsable={false} style={[styles.header, { width, height: refreshHeaderHeight }]}>
         {renderRefreshHeader ? renderRefreshHeader(headerInfo) : (
           <View style={styles.defaultHeader}>
             {refreshState === 'refreshing' ? <ActivityIndicator /> : null}
             <Text>{labels[refreshState]}</Text>
           </View>
         )}
-      </View>
+      </NativeSlot>
+      <NativeSlot listId={listId} slotId="fixed-header" accessoryRole="fixed" bindingToken={0} itemVersion={0}
+        collapsable={false} style={[styles.header, { width }]}>
+        <View collapsable={false} style={{ width }} onLayout={event => setFixedHeight(event.nativeEvent.layout.height)}>
+          {accessory(FixedHeaderComponent ?? null)}
+        </View>
+      </NativeSlot>
       {width > 0 ? slots.map((slot) => (
         <Slot key={slot.slotId} slot={slot} listId={listId} width={slot.entry.descriptor.fullSpan ? contentWidth : columnWidth}
           renderItem={renderItem} controller={controller} onMount={onMount} />

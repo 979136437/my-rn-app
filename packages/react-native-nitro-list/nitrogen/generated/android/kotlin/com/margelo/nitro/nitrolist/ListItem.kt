@@ -29,7 +29,22 @@ data class ListItem(
   val version: Double,
   @DoNotStrip
   @Keep
-  val fullSpan: Boolean
+  val fullSpan: Boolean,
+  @DoNotStrip
+  @Keep
+  val role: String,
+  @DoNotStrip
+  @Keep
+  val stickyGroup: String,
+  @DoNotStrip
+  @Keep
+  val stickyLevel: Double,
+  @DoNotStrip
+  @Keep
+  val stickyTransition: String,
+  @DoNotStrip
+  @Keep
+  val stickyEndKey: String
 ) {
   /* primary constructor */
 
@@ -40,6 +55,11 @@ data class ListItem(
       && Objects.deepEquals(this.type, other.type)
       && Objects.deepEquals(this.version, other.version)
       && Objects.deepEquals(this.fullSpan, other.fullSpan)
+      && Objects.deepEquals(this.role, other.role)
+      && Objects.deepEquals(this.stickyGroup, other.stickyGroup)
+      && Objects.deepEquals(this.stickyLevel, other.stickyLevel)
+      && Objects.deepEquals(this.stickyTransition, other.stickyTransition)
+      && Objects.deepEquals(this.stickyEndKey, other.stickyEndKey)
   }
 
   override fun hashCode(): Int {
@@ -47,7 +67,12 @@ data class ListItem(
       key,
       type,
       version,
-      fullSpan
+      fullSpan,
+      role,
+      stickyGroup,
+      stickyLevel,
+      stickyTransition,
+      stickyEndKey
     ).contentDeepHashCode()
   }
 
@@ -59,8 +84,8 @@ data class ListItem(
     @Keep
     @Suppress("unused")
     @JvmStatic
-    private fun fromCpp(key: String, type: String, version: Double, fullSpan: Boolean): ListItem {
-      return ListItem(key, type, version, fullSpan)
+    private fun fromCpp(key: String, type: String, version: Double, fullSpan: Boolean, role: String, stickyGroup: String, stickyLevel: Double, stickyTransition: String, stickyEndKey: String): ListItem {
+      return ListItem(key, type, version, fullSpan, role, stickyGroup, stickyLevel, stickyTransition, stickyEndKey)
     }
   }
 }

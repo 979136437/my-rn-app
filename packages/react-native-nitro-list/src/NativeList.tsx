@@ -1,15 +1,15 @@
 import { forwardRef } from 'react';
 import type { ForwardedRef, ReactElement, RefAttributes } from 'react';
 import { Platform } from 'react-native';
-import type { NitroListProps, NitroListRef } from './types';
+import type { NativeListProps, NativeListRef } from './types';
 
 type NitroListComponent = <T>(
-  props: NitroListProps<T> & RefAttributes<NitroListRef>,
+  props: NativeListProps<T> & RefAttributes<NativeListRef>,
 ) => ReactElement;
 
 let AndroidList: NitroListComponent | undefined;
 
-function NitroListImpl<T>(props: NitroListProps<T>, ref: ForwardedRef<NitroListRef>) {
+function NitroListImpl<T>(props: NativeListProps<T>, ref: ForwardedRef<NativeListRef>) {
   if (Platform.OS !== 'android') {
     throw new Error(`react-native-nitro-list currently supports Android only (received ${Platform.OS}).`);
   }
@@ -23,4 +23,4 @@ function NitroListImpl<T>(props: NitroListProps<T>, ref: ForwardedRef<NitroListR
   return <AndroidList {...props} ref={ref} />;
 }
 
-export const NitroList = forwardRef(NitroListImpl) as NitroListComponent;
+export const NativeList = forwardRef(NitroListImpl) as NitroListComponent;

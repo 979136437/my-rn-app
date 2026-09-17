@@ -9,6 +9,8 @@ import com.margelo.nitro.nitrolist.ListLayout
 import com.margelo.nitro.nitrolist.ListSnapshot
 import com.margelo.nitro.nitrolist.SlotBinding
 import java.util.concurrent.atomic.AtomicLong
+import com.margelo.nitro.core.Promise
+import com.margelo.nitro.nitrolist.ScrollMetrics
 
 /** Nitro never reads or mutates an Android View from the JS thread. */
 open class HybridNitroListController : HybridNitroListControllerSpec() {
@@ -48,18 +50,28 @@ open class HybridNitroListController : HybridNitroListControllerSpec() {
     require(config.itemVisiblePercentThreshold.isFinite() && config.itemVisiblePercentThreshold in 0.0..100.0) { "itemVisiblePercentThreshold must be between 0 and 100" }
     require(config.minimumViewTime.isFinite() && config.minimumViewTime >= 0) { "minimumViewTime must be finite and non-negative" }
     require(config.viewabilityEpoch.isFinite()) { "viewabilityEpoch must be finite" }
+    require(config.fixedHeaderHeight.isFinite() && config.fixedHeaderHeight >= 0 &&
+      config.refreshOffset.isFinite() && config.refreshOffset >= 0 && config.stickyHeaderOffset.isFinite()) { "Invalid header geometry" }
     val next = Configuration(config.layout == ListLayout.MASONRY, config.numColumns.toInt(), config.gap,
       config.estimatedItemSize, config.refreshEnabled, config.refreshHeaderHeight, config.refreshThreshold,
       config.paddingTop, config.paddingRight, config.paddingBottom, config.paddingLeft,
       config.endReachedEnabled, config.endReachedThreshold, config.endReachedEpoch,
       config.scrollEventsEnabled, config.scrollEventThrottle, config.viewabilityEnabled,
-      config.itemVisiblePercentThreshold, config.minimumViewTime, config.waitForInteraction, config.viewabilityEpoch)
+      config.itemVisiblePercentThreshold, config.minimumViewTime, config.waitForInteraction, config.viewabilityEpoch,
+      config.fixedHeaderHeight, config.fixedHeaderMode, config.refreshPlacement, config.refreshRevealMode,
+      config.refreshOffset, config.stickyHeaderAnchor, config.stickyHeaderOffset, config.stickyHeaderFollowRefresh, config.metricsEnabled)
     onUI { configuration = next; currentView?.configure(next) }
   }
 
   override fun setItems(items: Array<ListItem>) {
     require(items.map { it.key }.toSet().size == items.size) { "NitroList requires unique item keys" }
-    val next = items.map { Entry(it.key, it.type, it.version, it.fullSpan) }
+    val next = items.map { Entry(it.key, it.type, it.version, it.fullSpan, it.role,
+      it.stickyGroup, it.stickyLevel.toInt(), it.stickyTransition, it.stickyEndKey) }
+    val sticky = next.filter { it.stickyGroup.isNotEmpty() }
+    require(sticky.groupBy { it.stickyLevel }.values.all { group -> group.map { it.stickyGroup }.distinct().size == 1 } &&
+      sticky.groupBy { it.stickyGroup }.values.all { group -> group.map { it.stickyLevel }.distinct().size == 1 }) {
+      "Each sticky level must have one group and each group one level"
+    }
     onUI { this.items = next; currentView?.setItems(next) }
   }
 
@@ -81,6 +93,32 @@ open class HybridNitroListController : HybridNitroListControllerSpec() {
   }
 
   override fun scrollToEnd(animated: Boolean) { onUI { currentView?.scrollToEnd(animated) } }
+
+  override fun scrollBy(deltaY: Double, animated: Boolean) {
+    require(deltaY.isFinite()) { "scrollBy requires a finite delta" }
+    onUI { currentView?.scrollBy(deltaY, animated) }
+  }
+
+  override fun scrollToItem(key: String, animated: Boolean, align: String, offset: Double, avoidHeaders: Boolean) {
+    require(offset.isFinite() && align in setOf("start", "center", "end")) { "Invalid scrollToItem options" }
+    onUI { currentView?.scrollToItem(key, animated, align, offset, avoidHeaders) }
+  }
+
+  override fun stopScroll() { onUI { currentView?.stopScroll() } }
+
+  override fun getScrollMetrics(): Promise<ScrollMetrics> {
+    val result = Promise<ScrollMetrics>()
+    val epoch = generation.get()
+    ui.post {
+      val view = currentView
+      if (generation.get() != epoch || registeredId == null || view == null) {
+        result.reject(IllegalStateException("List is not connected"))
+      } else {
+        try { result.resolve(view.scrollMetrics()) } catch (error: Throwable) { result.reject(error) }
+      }
+    }
+    return result
+  }
 
   override fun disconnect() {
     val epoch = generation.incrementAndGet()

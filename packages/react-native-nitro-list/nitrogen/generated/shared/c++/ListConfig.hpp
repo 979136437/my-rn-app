@@ -32,6 +32,7 @@
 namespace margelo::nitro::nitrolist { enum class ListLayout; }
 
 #include "ListLayout.hpp"
+#include <string>
 
 namespace margelo::nitro::nitrolist {
 
@@ -61,10 +62,19 @@ namespace margelo::nitro::nitrolist {
     double minimumViewTime     SWIFT_PRIVATE;
     bool waitForInteraction     SWIFT_PRIVATE;
     double viewabilityEpoch     SWIFT_PRIVATE;
+    double fixedHeaderHeight     SWIFT_PRIVATE;
+    std::string fixedHeaderMode     SWIFT_PRIVATE;
+    std::string refreshPlacement     SWIFT_PRIVATE;
+    std::string refreshRevealMode     SWIFT_PRIVATE;
+    double refreshOffset     SWIFT_PRIVATE;
+    std::string stickyHeaderAnchor     SWIFT_PRIVATE;
+    double stickyHeaderOffset     SWIFT_PRIVATE;
+    bool stickyHeaderFollowRefresh     SWIFT_PRIVATE;
+    bool metricsEnabled     SWIFT_PRIVATE;
 
   public:
     ListConfig() = default;
-    explicit ListConfig(ListLayout layout, double numColumns, double gap, double estimatedItemSize, bool refreshEnabled, double refreshHeaderHeight, double refreshThreshold, double paddingTop, double paddingRight, double paddingBottom, double paddingLeft, bool endReachedEnabled, double endReachedThreshold, double endReachedEpoch, bool scrollEventsEnabled, double scrollEventThrottle, bool viewabilityEnabled, double itemVisiblePercentThreshold, double minimumViewTime, bool waitForInteraction, double viewabilityEpoch): layout(layout), numColumns(numColumns), gap(gap), estimatedItemSize(estimatedItemSize), refreshEnabled(refreshEnabled), refreshHeaderHeight(refreshHeaderHeight), refreshThreshold(refreshThreshold), paddingTop(paddingTop), paddingRight(paddingRight), paddingBottom(paddingBottom), paddingLeft(paddingLeft), endReachedEnabled(endReachedEnabled), endReachedThreshold(endReachedThreshold), endReachedEpoch(endReachedEpoch), scrollEventsEnabled(scrollEventsEnabled), scrollEventThrottle(scrollEventThrottle), viewabilityEnabled(viewabilityEnabled), itemVisiblePercentThreshold(itemVisiblePercentThreshold), minimumViewTime(minimumViewTime), waitForInteraction(waitForInteraction), viewabilityEpoch(viewabilityEpoch) {}
+    explicit ListConfig(ListLayout layout, double numColumns, double gap, double estimatedItemSize, bool refreshEnabled, double refreshHeaderHeight, double refreshThreshold, double paddingTop, double paddingRight, double paddingBottom, double paddingLeft, bool endReachedEnabled, double endReachedThreshold, double endReachedEpoch, bool scrollEventsEnabled, double scrollEventThrottle, bool viewabilityEnabled, double itemVisiblePercentThreshold, double minimumViewTime, bool waitForInteraction, double viewabilityEpoch, double fixedHeaderHeight, std::string fixedHeaderMode, std::string refreshPlacement, std::string refreshRevealMode, double refreshOffset, std::string stickyHeaderAnchor, double stickyHeaderOffset, bool stickyHeaderFollowRefresh, bool metricsEnabled): layout(layout), numColumns(numColumns), gap(gap), estimatedItemSize(estimatedItemSize), refreshEnabled(refreshEnabled), refreshHeaderHeight(refreshHeaderHeight), refreshThreshold(refreshThreshold), paddingTop(paddingTop), paddingRight(paddingRight), paddingBottom(paddingBottom), paddingLeft(paddingLeft), endReachedEnabled(endReachedEnabled), endReachedThreshold(endReachedThreshold), endReachedEpoch(endReachedEpoch), scrollEventsEnabled(scrollEventsEnabled), scrollEventThrottle(scrollEventThrottle), viewabilityEnabled(viewabilityEnabled), itemVisiblePercentThreshold(itemVisiblePercentThreshold), minimumViewTime(minimumViewTime), waitForInteraction(waitForInteraction), viewabilityEpoch(viewabilityEpoch), fixedHeaderHeight(fixedHeaderHeight), fixedHeaderMode(fixedHeaderMode), refreshPlacement(refreshPlacement), refreshRevealMode(refreshRevealMode), refreshOffset(refreshOffset), stickyHeaderAnchor(stickyHeaderAnchor), stickyHeaderOffset(stickyHeaderOffset), stickyHeaderFollowRefresh(stickyHeaderFollowRefresh), metricsEnabled(metricsEnabled) {}
 
   public:
     friend bool operator==(const ListConfig& lhs, const ListConfig& rhs) = default;
@@ -100,7 +110,16 @@ namespace margelo::nitro {
         JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "itemVisiblePercentThreshold"))),
         JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "minimumViewTime"))),
         JSIConverter<bool>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "waitForInteraction"))),
-        JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "viewabilityEpoch")))
+        JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "viewabilityEpoch"))),
+        JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "fixedHeaderHeight"))),
+        JSIConverter<std::string>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "fixedHeaderMode"))),
+        JSIConverter<std::string>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "refreshPlacement"))),
+        JSIConverter<std::string>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "refreshRevealMode"))),
+        JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "refreshOffset"))),
+        JSIConverter<std::string>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "stickyHeaderAnchor"))),
+        JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "stickyHeaderOffset"))),
+        JSIConverter<bool>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "stickyHeaderFollowRefresh"))),
+        JSIConverter<bool>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "metricsEnabled")))
       );
     }
     static inline jsi::Value toJSI(jsi::Runtime& runtime, const margelo::nitro::nitrolist::ListConfig& arg) {
@@ -126,6 +145,15 @@ namespace margelo::nitro {
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "minimumViewTime"), JSIConverter<double>::toJSI(runtime, arg.minimumViewTime));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "waitForInteraction"), JSIConverter<bool>::toJSI(runtime, arg.waitForInteraction));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "viewabilityEpoch"), JSIConverter<double>::toJSI(runtime, arg.viewabilityEpoch));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "fixedHeaderHeight"), JSIConverter<double>::toJSI(runtime, arg.fixedHeaderHeight));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "fixedHeaderMode"), JSIConverter<std::string>::toJSI(runtime, arg.fixedHeaderMode));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "refreshPlacement"), JSIConverter<std::string>::toJSI(runtime, arg.refreshPlacement));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "refreshRevealMode"), JSIConverter<std::string>::toJSI(runtime, arg.refreshRevealMode));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "refreshOffset"), JSIConverter<double>::toJSI(runtime, arg.refreshOffset));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "stickyHeaderAnchor"), JSIConverter<std::string>::toJSI(runtime, arg.stickyHeaderAnchor));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "stickyHeaderOffset"), JSIConverter<double>::toJSI(runtime, arg.stickyHeaderOffset));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "stickyHeaderFollowRefresh"), JSIConverter<bool>::toJSI(runtime, arg.stickyHeaderFollowRefresh));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "metricsEnabled"), JSIConverter<bool>::toJSI(runtime, arg.metricsEnabled));
       return obj;
     }
     static inline bool canConvert(jsi::Runtime& runtime, const jsi::Value& value) {
@@ -157,6 +185,15 @@ namespace margelo::nitro {
       if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "minimumViewTime")))) return false;
       if (!JSIConverter<bool>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "waitForInteraction")))) return false;
       if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "viewabilityEpoch")))) return false;
+      if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "fixedHeaderHeight")))) return false;
+      if (!JSIConverter<std::string>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "fixedHeaderMode")))) return false;
+      if (!JSIConverter<std::string>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "refreshPlacement")))) return false;
+      if (!JSIConverter<std::string>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "refreshRevealMode")))) return false;
+      if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "refreshOffset")))) return false;
+      if (!JSIConverter<std::string>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "stickyHeaderAnchor")))) return false;
+      if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "stickyHeaderOffset")))) return false;
+      if (!JSIConverter<bool>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "stickyHeaderFollowRefresh")))) return false;
+      if (!JSIConverter<bool>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "metricsEnabled")))) return false;
       return true;
     }
   };

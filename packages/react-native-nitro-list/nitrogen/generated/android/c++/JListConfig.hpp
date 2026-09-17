@@ -12,6 +12,7 @@
 
 #include "JListLayout.hpp"
 #include "ListLayout.hpp"
+#include <string>
 
 namespace margelo::nitro::nitrolist {
 
@@ -74,6 +75,24 @@ namespace margelo::nitro::nitrolist {
       jboolean waitForInteraction = this->getFieldValue(fieldWaitForInteraction);
       static const auto fieldViewabilityEpoch = clazz->getField<double>("viewabilityEpoch");
       double viewabilityEpoch = this->getFieldValue(fieldViewabilityEpoch);
+      static const auto fieldFixedHeaderHeight = clazz->getField<double>("fixedHeaderHeight");
+      double fixedHeaderHeight = this->getFieldValue(fieldFixedHeaderHeight);
+      static const auto fieldFixedHeaderMode = clazz->getField<jni::JString>("fixedHeaderMode");
+      jni::local_ref<jni::JString> fixedHeaderMode = this->getFieldValue(fieldFixedHeaderMode);
+      static const auto fieldRefreshPlacement = clazz->getField<jni::JString>("refreshPlacement");
+      jni::local_ref<jni::JString> refreshPlacement = this->getFieldValue(fieldRefreshPlacement);
+      static const auto fieldRefreshRevealMode = clazz->getField<jni::JString>("refreshRevealMode");
+      jni::local_ref<jni::JString> refreshRevealMode = this->getFieldValue(fieldRefreshRevealMode);
+      static const auto fieldRefreshOffset = clazz->getField<double>("refreshOffset");
+      double refreshOffset = this->getFieldValue(fieldRefreshOffset);
+      static const auto fieldStickyHeaderAnchor = clazz->getField<jni::JString>("stickyHeaderAnchor");
+      jni::local_ref<jni::JString> stickyHeaderAnchor = this->getFieldValue(fieldStickyHeaderAnchor);
+      static const auto fieldStickyHeaderOffset = clazz->getField<double>("stickyHeaderOffset");
+      double stickyHeaderOffset = this->getFieldValue(fieldStickyHeaderOffset);
+      static const auto fieldStickyHeaderFollowRefresh = clazz->getField<jboolean>("stickyHeaderFollowRefresh");
+      jboolean stickyHeaderFollowRefresh = this->getFieldValue(fieldStickyHeaderFollowRefresh);
+      static const auto fieldMetricsEnabled = clazz->getField<jboolean>("metricsEnabled");
+      jboolean metricsEnabled = this->getFieldValue(fieldMetricsEnabled);
       return ListConfig(
         layout->toCpp(),
         numColumns,
@@ -95,7 +114,16 @@ namespace margelo::nitro::nitrolist {
         itemVisiblePercentThreshold,
         minimumViewTime,
         static_cast<bool>(waitForInteraction),
-        viewabilityEpoch
+        viewabilityEpoch,
+        fixedHeaderHeight,
+        fixedHeaderMode->toStdString(),
+        refreshPlacement->toStdString(),
+        refreshRevealMode->toStdString(),
+        refreshOffset,
+        stickyHeaderAnchor->toStdString(),
+        stickyHeaderOffset,
+        static_cast<bool>(stickyHeaderFollowRefresh),
+        static_cast<bool>(metricsEnabled)
       );
     }
 
@@ -105,7 +133,7 @@ namespace margelo::nitro::nitrolist {
      */
     [[maybe_unused]]
     static jni::local_ref<JListConfig::javaobject> fromCpp(const ListConfig& value) {
-      using JSignature = JListConfig(jni::alias_ref<JListLayout>, double, double, double, jboolean, double, double, double, double, double, double, jboolean, double, double, jboolean, double, jboolean, double, double, jboolean, double);
+      using JSignature = JListConfig(jni::alias_ref<JListLayout>, double, double, double, jboolean, double, double, double, double, double, double, jboolean, double, double, jboolean, double, jboolean, double, double, jboolean, double, double, jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>, double, jni::alias_ref<jni::JString>, double, jboolean, jboolean);
       static const auto clazz = javaClassStatic();
       static const auto create = clazz->getStaticMethod<JSignature>("fromCpp");
       return create(
@@ -130,7 +158,16 @@ namespace margelo::nitro::nitrolist {
         value.itemVisiblePercentThreshold,
         value.minimumViewTime,
         value.waitForInteraction,
-        value.viewabilityEpoch
+        value.viewabilityEpoch,
+        value.fixedHeaderHeight,
+        jni::make_jstring(value.fixedHeaderMode),
+        jni::make_jstring(value.refreshPlacement),
+        jni::make_jstring(value.refreshRevealMode),
+        value.refreshOffset,
+        jni::make_jstring(value.stickyHeaderAnchor),
+        value.stickyHeaderOffset,
+        value.stickyHeaderFollowRefresh,
+        value.metricsEnabled
       );
     }
   };

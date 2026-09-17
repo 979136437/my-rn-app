@@ -43,10 +43,15 @@ namespace margelo::nitro::nitrolist {
     std::string type     SWIFT_PRIVATE;
     double version     SWIFT_PRIVATE;
     bool fullSpan     SWIFT_PRIVATE;
+    std::string role     SWIFT_PRIVATE;
+    std::string stickyGroup     SWIFT_PRIVATE;
+    double stickyLevel     SWIFT_PRIVATE;
+    std::string stickyTransition     SWIFT_PRIVATE;
+    std::string stickyEndKey     SWIFT_PRIVATE;
 
   public:
     ListItem() = default;
-    explicit ListItem(std::string key, std::string type, double version, bool fullSpan): key(key), type(type), version(version), fullSpan(fullSpan) {}
+    explicit ListItem(std::string key, std::string type, double version, bool fullSpan, std::string role, std::string stickyGroup, double stickyLevel, std::string stickyTransition, std::string stickyEndKey): key(key), type(type), version(version), fullSpan(fullSpan), role(role), stickyGroup(stickyGroup), stickyLevel(stickyLevel), stickyTransition(stickyTransition), stickyEndKey(stickyEndKey) {}
 
   public:
     friend bool operator==(const ListItem& lhs, const ListItem& rhs) = default;
@@ -65,7 +70,12 @@ namespace margelo::nitro {
         JSIConverter<std::string>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "key"))),
         JSIConverter<std::string>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "type"))),
         JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "version"))),
-        JSIConverter<bool>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "fullSpan")))
+        JSIConverter<bool>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "fullSpan"))),
+        JSIConverter<std::string>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "role"))),
+        JSIConverter<std::string>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "stickyGroup"))),
+        JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "stickyLevel"))),
+        JSIConverter<std::string>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "stickyTransition"))),
+        JSIConverter<std::string>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "stickyEndKey")))
       );
     }
     static inline jsi::Value toJSI(jsi::Runtime& runtime, const margelo::nitro::nitrolist::ListItem& arg) {
@@ -74,6 +84,11 @@ namespace margelo::nitro {
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "type"), JSIConverter<std::string>::toJSI(runtime, arg.type));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "version"), JSIConverter<double>::toJSI(runtime, arg.version));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "fullSpan"), JSIConverter<bool>::toJSI(runtime, arg.fullSpan));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "role"), JSIConverter<std::string>::toJSI(runtime, arg.role));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "stickyGroup"), JSIConverter<std::string>::toJSI(runtime, arg.stickyGroup));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "stickyLevel"), JSIConverter<double>::toJSI(runtime, arg.stickyLevel));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "stickyTransition"), JSIConverter<std::string>::toJSI(runtime, arg.stickyTransition));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "stickyEndKey"), JSIConverter<std::string>::toJSI(runtime, arg.stickyEndKey));
       return obj;
     }
     static inline bool canConvert(jsi::Runtime& runtime, const jsi::Value& value) {
@@ -88,6 +103,11 @@ namespace margelo::nitro {
       if (!JSIConverter<std::string>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "type")))) return false;
       if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "version")))) return false;
       if (!JSIConverter<bool>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "fullSpan")))) return false;
+      if (!JSIConverter<std::string>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "role")))) return false;
+      if (!JSIConverter<std::string>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "stickyGroup")))) return false;
+      if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "stickyLevel")))) return false;
+      if (!JSIConverter<std::string>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "stickyTransition")))) return false;
+      if (!JSIConverter<std::string>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "stickyEndKey")))) return false;
       return true;
     }
   };

@@ -30,7 +30,9 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-internal data class Entry(val key: String, val type: String, val version: Double, val fullSpan: Boolean)
+internal data class Entry(val key: String, val type: String, val version: Double, val fullSpan: Boolean,
+  val role: String = "item", val stickyGroup: String = "", val stickyLevel: Int = 0,
+  val stickyTransition: String = "push", val stickyEndKey: String = "")
 internal data class Configuration(
   val masonry: Boolean = false,
   val columns: Int = 1,
@@ -53,6 +55,15 @@ internal data class Configuration(
   val minimumViewTime: Double = 0.0,
   val waitForInteraction: Boolean = false,
   val viewabilityEpoch: Double = 0.0,
+  val fixedHeaderHeight: Double = 0.0,
+  val fixedHeaderMode: String = "inset",
+  val refreshPlacement: String = "belowHeader",
+  val refreshRevealMode: String = "push",
+  val refreshOffset: Double = 0.0,
+  val stickyHeaderAnchor: String = "headerBottom",
+  val stickyHeaderOffset: Double = 0.0,
+  val stickyHeaderFollowRefresh: Boolean = true,
+  val metricsEnabled: Boolean = false,
 )
 internal data class Binding(
   val slotId: String,
@@ -118,6 +129,25 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
   private val adapter = ListAdapter()
   private val recycler = TouchRecyclerView()
   private var header: View? = null
+  private var fixedHeader: View? = null
+  private val refreshLayer = OverlayFrame(reactContext)
+  private val stickyLayer = OverlayFrame(reactContext)
+  private val pinned = linkedMapOf<String, String>() // item key -> retained slot
+  private val pinnedFrames = mutableMapOf<String, OverlayFrame>()
+  private val activeGroups = mutableMapOf<String, Pair<Int, String>>()
+  private var updatingSticky = false
+  private var metricsScheduled = false
+  private var continuousOffset = 0f
+  private var offsetNeedsSync = true
+  private var frozenHeaderHeight: Int? = null
+  private data class ItemSeek(val key: String, val align: String, val offset: Int,
+    val avoidHeaders: Boolean, val deadline: Long, var stableFrames: Int = 0)
+  private var itemSeek: ItemSeek? = null
+  private val correctItem = Runnable { correctItemSeek() }
+  private val deliverMetrics = Runnable {
+    metricsScheduled = false
+    if (!destroyed && configuration.metricsEnabled) emit("topScrollMetrics", metricsPayload())
+  }
   private var refreshing = false
   private var awaitingRefresh = false
   private var refreshSequence = 0
@@ -195,7 +225,10 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
     recycler.overScrollMode = OVER_SCROLL_NEVER
     recycler.addOnScrollListener(object : RecyclerView.OnScrollListener() {
       override fun onScrolled(view: RecyclerView, dx: Int, dy: Int) {
+        if (dy != 0) continuousOffset = max(0f, continuousOffset + dy)
         scheduleScrollDelivery()
+        updateSticky()
+        scheduleMetrics()
         syncSlotPositions()
         scheduleEndAlignment()
         // Re-arm only on actual upward user movement, never on a footer resize
@@ -209,7 +242,7 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
         scheduleEndCheck()
       }
       override fun onScrollStateChanged(view: RecyclerView, newState: Int) {
-        if (newState == RecyclerView.SCROLL_STATE_DRAGGING) interacted = true
+        if (newState == RecyclerView.SCROLL_STATE_DRAGGING) { interacted = true; cancelItemSeek() }
         val state = when (newState) {
           RecyclerView.SCROLL_STATE_DRAGGING -> "dragging"
           RecyclerView.SCROLL_STATE_SETTLING -> "settling"
@@ -224,6 +257,7 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
         if (newState == RecyclerView.SCROLL_STATE_IDLE) userScrolling = false
         if (newState == RecyclerView.SCROLL_STATE_IDLE) scheduleEndAlignment()
         scheduleEndCheck()
+        scheduleMetrics()
       }
     })
     recycler.addItemDecoration(object : RecyclerView.ItemDecoration() {
@@ -240,6 +274,8 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
       }
     })
     super.addView(recycler, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+    super.addView(stickyLayer, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+    super.addView(refreshLayer, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     initialized = true
   }
 
@@ -254,6 +290,12 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
     val previous = configuration
     val anchor = captureAnchor()
     configuration = value
+    if (previous.fixedHeaderHeight != value.fixedHeaderHeight || previous.fixedHeaderMode != value.fixedHeaderMode) {
+      requestLayout()
+      restoreAnchor(anchor)
+    }
+    requestLayout()
+    scheduleMetrics()
     if (!value.scrollEventsEnabled) {
       removeCallbacks(deliverScroll)
       scrollDeliveryScheduled = false
@@ -313,7 +355,7 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
   internal fun setItems(value: List<Entry>) {
     if (entries == value) return
     estimatedStarts = null
-    val nextDataKeys = value.filterNot { it.fullSpan }.map { it.key }
+    val nextDataKeys = value.filter { it.role == "item" }.map { it.key }
     if (dataKeys != nextDataKeys) {
       // Only a new data batch resets the latch; auxiliary and content revisions do not.
       resetEndReached()
@@ -325,6 +367,19 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
     }
     val anchor = if (contentOnly) null else captureAnchor()
     entries = value
+    // A new item type is a new React recycling identity, even when the key is stable.
+    // Release it before adapter rebinding so the old snapshot can never label new content
+    // with the previous type. Same-key/same-type revisions keep their mounted subtree.
+    pinned.keys.filter { key ->
+      val next = value.firstOrNull { it.key == key }
+      next == null || next.stickyGroup.isEmpty() || pinned[key]?.let { slots[it]?.type } != next.type
+    }.toList().forEach { key ->
+      val id = pinned[key]
+      val typeChanged = id != null && value.firstOrNull { it.key == key }?.type != slots[id]?.type
+      unpin(key)
+      if (typeChanged && id != null) releaseSlot(id)
+    }
+    itemSeek?.let { seek -> if (value.none { it.key == seek.key }) failItemSeek("target-removed") }
     positionsByKey = value.mapIndexed { index, entry -> entry.key to index }.toMap()
     val keys = value.mapTo(hashSetOf()) { it.key }
     stableIds.keys.retainAll(keys)
@@ -367,16 +422,22 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
 
   internal fun addLogicalChild(child: View, index: Int) {
     logicalChildren.add(index, child)
-    if (child is NitroListSlotView) {
+    if (child is NitroListSlotView && child.accessoryRole.isEmpty()) {
       slotViews[child.slotId] = child
       attachSlot(child.slotId)
     } else {
-      check(header == null) { "NitroListView accepts only one refresh header" }
-      header = child
+      val accessories = logicalChildren.filter { it !is NitroListSlotView || it.accessoryRole.isNotEmpty() }
+      check(accessories.size <= 2) { "NitroListView accepts refresh and fixed header children" }
       (child.parent as? ViewGroup)?.removeView(child)
-      super.addView(child, 0)
-      child.translationY = pullDistance - px(configuration.headerHeight)
-      child.visibility = if (pullDistance > 0f) VISIBLE else INVISIBLE
+      val role = (child as? NitroListSlotView)?.accessoryRole.orEmpty()
+      if (role == "refresh" || (role.isEmpty() && accessories.indexOf(child) == 0)) {
+        header = child
+        refreshLayer.addView(child)
+      } else {
+        fixedHeader = child
+        super.addView(child)
+      }
+      applyHeaderTranslations()
     }
     requestLayout()
   }
@@ -385,6 +446,7 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
     val child = logicalChildren.removeAt(index)
     if (child is NitroListSlotView && slotViews[child.slotId] === child) slotViews.remove(child.slotId)
     if (header === child) header = null
+    if (fixedHeader === child) fixedHeader = null
     (child.parent as? ViewGroup)?.removeView(child)
   }
 
@@ -395,17 +457,33 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
   internal fun slotDidCommit(view: NitroListSlotView) {
     // addView can occur after the props transaction. Never parent a child before Fabric inserts it.
     if (view !in logicalChildren) return
+    if (view.accessoryRole.isNotEmpty()) { syncSlotPosition(view); return }
     slotViews.entries.removeAll { it.value === view && it.key != view.slotId }
     slotViews[view.slotId] = view
     attachSlot(view.slotId)
+    updateSticky()
     scheduleEndAlignment()
     scheduleEndCheck()
   }
 
   private fun attachSlot(id: String) {
     val binding = slots[id] ?: return
-    val holder = holders[id] ?: return
     val view = slotViews[id] ?: return
+    if (pinned[binding.key] == id) {
+      val clipFrame = pinnedFrames.getOrPut(id) {
+        OverlayFrame(reactContext).also { stickyLayer.addView(it) }
+      }
+      if (view.parent !== clipFrame) {
+        (view.parent as? ViewGroup)?.removeView(view)
+        clipFrame.addView(view)
+      }
+      view.visibility = if (view.bindingToken == binding.token && measuredTokens[id] == binding.token) VISIBLE else INVISIBLE
+      view.pointerEvents = if (view.visibility == VISIBLE) PointerEvents.AUTO else PointerEvents.NONE
+      return
+    }
+    val holder = holders[id] ?: return
+    view.visibility = VISIBLE
+    view.pointerEvents = PointerEvents.AUTO
     if (view.parent !== holder.frame) {
       (view.parent as? ViewGroup)?.removeView(view)
       holder.frame.addView(view, FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
@@ -418,7 +496,17 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
   }
 
   internal fun syncSlotPosition(view: NitroListSlotView) {
+    if (view === header || view === fixedHeader) {
+      val parentY = if (view === header) refreshLayer.y else 0f
+      view.updateContentOffset(dp(view.x), dp(parentY + view.y))
+      return
+    }
     val binding = slots[view.slotId] ?: return
+    val clipFrame = pinnedFrames[view.slotId]
+    if (clipFrame != null && view.parent === clipFrame && pinned[binding.key] == view.slotId) {
+      view.updateContentOffset(dp(clipFrame.x + view.x), dp(clipFrame.y + view.y))
+      return
+    }
     val frame = holders[view.slotId]?.frame ?: return
     if (!binding.active || frame.parent !== recycler || view.parent !== frame) return
     // Fabric sees slots as direct children at (0, 0). Publish the native position
@@ -430,6 +518,8 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
   }
 
   private fun syncSlotPositions() {
+    (header as? NitroListSlotView)?.let(::syncSlotPosition)
+    (fixedHeader as? NitroListSlotView)?.let(::syncSlotPosition)
     for (view in slotViews.values) syncSlotPosition(view)
   }
 
@@ -462,11 +552,243 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
       }
     }
     attachSlot(id)
+    updateSticky()
+    scheduleMetrics()
     scheduleEndAlignment()
     scheduleEndCheck()
   }
 
+  private fun insetHeight(): Int = if (configuration.fixedHeaderMode == "inset") headerHeightForPull() else 0
+  private fun headerHeightForPull(): Int = frozenHeaderHeight ?: px(configuration.fixedHeaderHeight)
+  private fun stickyBase(): Float =
+    (if (configuration.stickyHeaderAnchor == "headerBottom") headerHeightForPull() else 0).toFloat() +
+      px(configuration.stickyHeaderOffset) + if (configuration.stickyHeaderFollowRefresh) pullDistance else 0f
+
+  private fun applyHeaderTranslations() {
+    recycler.translationY = if (configuration.refreshRevealMode == "push") pullDistance else 0f
+    fixedHeader?.translationY = if (configuration.refreshPlacement == "aboveHeader") pullDistance else 0f
+    val origin = (if (configuration.refreshPlacement == "belowHeader") headerHeightForPull() else 0) + px(configuration.refreshOffset)
+    // Actual parent bounds constrain both Android drawing and React Native hit testing.
+    // TouchTargetHelper does not honor arbitrary View.clipBounds.
+    refreshLayer.layout(0, origin, width, origin + max(0, pullDistance.roundToInt()))
+    header?.translationY = pullDistance - px(configuration.headerHeight)
+    header?.visibility = if (pullDistance > 0f) VISIBLE else INVISIBLE
+    (header as? NitroListSlotView)?.pointerEvents = if (pullDistance > 0f) PointerEvents.AUTO else PointerEvents.NONE
+    refreshLayer.clipBounds = null
+  }
+
+  private fun rawOffset(): Int {
+    val starts = estimatedItemStarts()
+    val manager = recycler.layoutManager ?: return 0
+    var first: View? = null
+    var position = Int.MAX_VALUE
+    for (i in 0 until recycler.childCount) {
+      val child = recycler.getChildAt(i)
+      val candidate = recycler.getChildAdapterPosition(child)
+      if (candidate in entries.indices && candidate < position) { position = candidate; first = child }
+    }
+    return first?.let { max(0, starts[position] - manager.getDecoratedTop(it) + recycler.paddingTop) } ?: 0
+  }
+
+  private fun naturalTop(position: Int): Float {
+    recycler.findViewHolderForAdapterPosition(position)?.itemView?.let { return recycler.y + it.top }
+    return recycler.y + recycler.paddingTop + estimatedItemStarts()[position] - rawOffset()
+  }
+
+  private fun unpin(key: String) {
+    val id = pinned.remove(key) ?: return
+    slotViews[id]?.let { it.clipBounds = null }
+    if (holders[id] != null) attachSlot(id) else releaseSlot(id)
+    pinnedFrames.remove(id)?.let { stickyLayer.removeView(it) }
+  }
+
+  private fun updateSticky() {
+    if (updatingSticky || destroyed || width == 0) return
+    updatingSticky = true
+    try {
+      estimatedItemStarts()
+      var baseline = stickyBase()
+      val nextGroups = mutableMapOf<String, Pair<Int, String>>()
+      val nextKeys = mutableSetOf<String>()
+      val groups = entries.withIndex().filter { it.value.stickyGroup.isNotEmpty() }
+        .groupBy { it.value.stickyGroup }.values.sortedBy { it.first().value.stickyLevel }
+      for (group in groups) {
+        val active = group.lastOrNull { indexed -> naturalTop(indexed.index) <= baseline } ?: continue
+        val item = active.value
+        val itemSize = itemHeight(item)
+        val boundary = group.firstOrNull { it.index > active.index }?.index
+        val explicitEnd = positionsByKey[item.stickyEndKey]
+        val footer = positionsByKey["accessory:footer"]?.takeIf { it > active.index }
+        val end = listOfNotNull(boundary, explicitEnd, footer).minOrNull()
+        val endTop = end?.let(::naturalTop) ?: (recycler.y + recycler.paddingTop + estimatedContentEnd - rawOffset())
+        if (endTop <= baseline) continue
+        val y = if (item.stickyTransition == "push") minOf(baseline, endTop - itemSize) else baseline
+        var id = pinned[item.key]
+        if (id == null) {
+          id = slots.values.firstOrNull { it.active && it.key == item.key }?.slotId ?: "slot-${nextSlotId++}".also { newId ->
+            slots[newId] = Binding(newId, item.key, active.index, item.type, (++nextToken).toDouble(), item.version, true)
+            scheduleSnapshot()
+          }
+          pinned[item.key] = id
+        }
+        val binding = slots[id]
+        if (binding != null && (binding.index != active.index || binding.version != item.version)) {
+          slots[id] = binding.copy(index = active.index, version = item.version)
+          scheduleSnapshot()
+        }
+        attachSlot(id)
+        slotViews[id]?.let { view ->
+          view.measure(MeasureSpec.makeMeasureSpec(contentWidth(item), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(itemSize, MeasureSpec.EXACTLY))
+          val clipFrame = pinnedFrames.getValue(id)
+          val visibleTop = max(0, max(baseline, y).roundToInt())
+          val visibleBottom = max(visibleTop, minOf(height, (y + itemSize).roundToInt()))
+          clipFrame.layout(recycler.paddingLeft, visibleTop, recycler.paddingLeft + contentWidth(item), visibleBottom)
+          val localTop = y.roundToInt() - visibleTop
+          view.layout(0, localTop, contentWidth(item), localTop + itemSize)
+          view.clipBounds = null
+          syncSlotPosition(view)
+        }
+        nextKeys.add(item.key)
+        nextGroups[item.stickyGroup] = item.stickyLevel to item.key
+        baseline += itemSize
+      }
+      pinned.keys.filter { it !in nextKeys }.toList().forEach(::unpin)
+      // Higher levels draw first so the upper layer remains above a pushing lower one.
+      nextGroups.values.sortedByDescending { it.first }.forEach { (_, key) -> pinned[key]?.let { pinnedFrames[it]?.bringToFront() } }
+      (activeGroups.keys + nextGroups.keys).forEach { group ->
+        val old = activeGroups[group]
+        val next = nextGroups[group]
+        if (old != next) emit("topStickyHeaderChange", Arguments.createMap().apply {
+          putString("group", group); putInt("level", (next ?: old)!!.first)
+          putString("previousKey", old?.second ?: ""); putString("key", next?.second ?: "")
+        })
+      }
+      activeGroups.clear(); activeGroups.putAll(nextGroups)
+    } finally { updatingSticky = false }
+  }
+
+  private fun fixedHeaderBottom(): Float = fixedHeader?.takeIf { it.height > 0 }?.let { it.y + it.height } ?: 0f
+
+  private fun obstructionBottom(): Float = max(
+    fixedHeaderBottom(),
+    pinned.values.filter { slotViews[it]?.visibility == VISIBLE }.mapNotNull { pinnedFrames[it] }
+      .filter { it.height > 0 }.maxOfOrNull { it.y + it.height } ?: 0f,
+  )
+
+  private fun scheduleMetrics() {
+    if (destroyed || metricsScheduled || !configuration.metricsEnabled || !isAttachedToWindow) return
+    metricsScheduled = true
+    postOnAnimation(deliverMetrics)
+  }
+
+  internal fun scrollMetrics(): com.margelo.nitro.nitrolist.ScrollMetrics {
+    estimatedItemStarts()
+    if (offsetNeedsSync) continuousOffset = rawOffset().toFloat()
+    if (!recycler.canScrollVertically(-1)) continuousOffset = 0f
+    val content = estimatedContentEnd + recycler.paddingTop + recycler.paddingBottom
+    val unknown = entries.any { !heights.containsKey(SizeKey(it.key, it.version, contentWidth(it))) }
+    val starts = estimatedItemStarts()
+    val raw = rawOffset()
+    val offsetUnknown = entries.filterIndexed { index, _ -> starts[index] < raw }
+      .any { !heights.containsKey(SizeKey(it.key, it.version, contentWidth(it))) }
+    return com.margelo.nitro.nitrolist.ScrollMetrics(
+      dp(continuousOffset), dp(pullDistance), dp(recycler.height.toFloat()), dp(content.toFloat()),
+      dp(max(0, content - recycler.height).toFloat()), if (dragging) "dragging" else if (animator != null) "settling" else observedScrollState,
+      !recycler.canScrollVertically(-1), !recycler.canScrollVertically(1),
+      dp(fixedHeaderBottom()), dp(stickyBase()), offsetUnknown, unknown,
+      SystemClock.uptimeMillis().toDouble(),
+    )
+  }
+
+  private fun metricsPayload(): WritableMap {
+    val m = scrollMetrics()
+    return Arguments.createMap().apply {
+      putDouble("offsetY", m.offsetY); putDouble("pullDistance", m.pullDistance)
+      putDouble("viewportHeight", m.viewportHeight); putDouble("contentHeight", m.contentHeight)
+      putDouble("maxOffsetY", m.maxOffsetY); putString("scrollState", m.scrollState)
+      putBoolean("isAtStart", m.isAtStart); putBoolean("isAtEnd", m.isAtEnd)
+      putDouble("headerBottom", m.headerBottom); putDouble("stickyTop", m.stickyTop)
+      putBoolean("isOffsetEstimated", m.isOffsetEstimated); putBoolean("isContentSizeEstimated", m.isContentSizeEstimated)
+      putDouble("timestamp", m.timestamp)
+    }
+  }
+
+  internal fun stopScroll() { cancelItemSeek(); pendingEndGeneration = null; scrollGeneration++; recycler.stopScroll() }
+  internal fun scrollBy(deltaY: Double, animated: Boolean) {
+    stopScroll()
+    if (animated) recycler.smoothScrollBy(0, px(deltaY)) else recycler.scrollBy(0, px(deltaY))
+  }
+
+  internal fun scrollToItem(key: String, animated: Boolean, align: String, offset: Double, avoidHeaders: Boolean) {
+    stopScroll()
+    itemSeek = ItemSeek(key, align, px(offset), avoidHeaders, SystemClock.uptimeMillis() + 2000)
+    val position = positionsByKey[key]
+    if (position == null) { failItemSeek("invalid-target"); return }
+    offsetNeedsSync = true
+    if (animated) recycler.layoutManager?.startSmoothScroll(object : LinearSmoothScroller(context) {
+      override fun getVerticalSnapPreference(): Int = SNAP_TO_START
+      override fun onStop() { super.onStop(); postOnAnimation(correctItem) }
+    }.apply { targetPosition = position })
+    else { scrollPosition(position, 0); requestLayout() }
+    postOnAnimation(correctItem)
+  }
+
+  private fun cancelItemSeek() { itemSeek = null; removeCallbacks(correctItem) }
+  private fun failItemSeek(reason: String) {
+    val seek = itemSeek ?: return
+    cancelItemSeek()
+    emit("topScrollToItemFailed", Arguments.createMap().apply { putString("key", seek.key); putString("reason", reason) })
+  }
+
+  private fun targetObstruction(position: Int): Float {
+    var baseline = if (configuration.stickyHeaderAnchor == "headerBottom") px(configuration.fixedHeaderHeight).toFloat() else 0f
+    baseline += px(configuration.stickyHeaderOffset)
+    entries.withIndex().filter { it.value.stickyGroup.isNotEmpty() }.groupBy { it.value.stickyGroup }.values
+      .sortedBy { it.first().value.stickyLevel }.forEach { group ->
+        val active = group.lastOrNull { it.index <= position }
+        if (active != null && active.index != position &&
+          (positionsByKey[active.value.stickyEndKey] ?: positionsByKey["accessory:footer"] ?: entries.size) > position) {
+          baseline += itemHeight(active.value)
+        }
+      }
+    return max(px(configuration.fixedHeaderHeight).toFloat(), baseline)
+  }
+
+  private fun correctItemSeek() {
+    removeCallbacks(correctItem)
+    val seek = itemSeek ?: return
+    if (destroyed || !isAttachedToWindow) { cancelItemSeek(); return }
+    val position = positionsByKey[seek.key] ?: run { failItemSeek("target-removed"); return }
+    if (SystemClock.uptimeMillis() >= seek.deadline) { failItemSeek("measurement-timeout"); return }
+    if (recycler.isComputingLayout || recycler.isLayoutRequested || recycler.scrollState != RecyclerView.SCROLL_STATE_IDLE) {
+      postOnAnimation(correctItem); return
+    }
+    val frame = recycler.findViewHolderForAdapterPosition(position)?.itemView
+    if (frame == null) { scrollPosition(position, 0); requestLayout(); postOnAnimation(correctItem); return }
+    val item = entries[position]
+    val top = if (seek.avoidHeaders) max(recycler.y + recycler.paddingTop, targetObstruction(position)) else recycler.y + recycler.paddingTop
+    val bottom = recycler.y + recycler.height - recycler.paddingBottom
+    val target = when (seek.align) {
+      "center" -> top + (bottom - top - frame.height) / 2
+      "end" -> bottom - frame.height
+      else -> top
+    } + seek.offset
+    val delta = (recycler.y + frame.top - target).roundToInt()
+    val measured = heights.containsKey(SizeKey(item.key, item.version, contentWidth(item)))
+    val clamped = (delta < 0 && !recycler.canScrollVertically(-1)) || (delta > 0 && !recycler.canScrollVertically(1))
+    if (measured && (abs(delta) <= max(1, px(1.0)) || clamped)) {
+      seek.stableFrames++
+      if (seek.stableFrames >= 2) { cancelItemSeek(); return }
+    } else {
+      seek.stableFrames = 0
+      if (delta != 0) recycler.scrollBy(0, delta)
+    }
+    postOnAnimation(correctItem)
+  }
+
   internal fun scrollToOffset(offset: Double, animated: Boolean) {
+    cancelItemSeek()
+    offsetNeedsSync = true
     scrollGeneration++
     userScrolling = false
     estimatedStarts = null
@@ -503,6 +825,8 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
   }
 
   internal fun scrollToEnd(animated: Boolean) {
+    cancelItemSeek()
+    offsetNeedsSync = true
     val generation = ++scrollGeneration
     userScrolling = false
     estimatedStarts = null
@@ -529,6 +853,7 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
 
   private fun scheduleEndCheck() {
     scheduleObservation()
+    scheduleMetrics()
     if (endCheckScheduled || destroyed) return
     endCheckScheduled = true
     postOnAnimation(checkEnd)
@@ -588,7 +913,7 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
     if (recycler.isComputingLayout || recycler.isLayoutRequested) return
     val now = SystemClock.uptimeMillis()
     val samples = mutableListOf<VisibilitySample>()
-    val top = max(0f, recycler.y + recycler.paddingTop)
+    val top = max(obstructionBottom(), recycler.y + recycler.paddingTop)
     val bottom = minOf(height.toFloat(), recycler.y + recycler.height - recycler.paddingBottom)
     val left = max(0f, recycler.x + recycler.paddingLeft)
     val right = minOf(width.toFloat(), recycler.x + recycler.width - recycler.paddingRight)
@@ -599,7 +924,7 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
         val binding = slots[cell.slotId] ?: continue
         val slot = slotViews[cell.slotId] ?: continue
         val item = entries.getOrNull(binding.index) ?: continue
-        if (item.fullSpan || item.key != binding.key || item.version != binding.version || !binding.active ||
+        if (item.role != "item" || item.key != binding.key || item.version != binding.version || !binding.active ||
           !frame.isShown || frame.height <= 0 || slot.parent !== frame ||
           measuredTokens[cell.slotId] != binding.token || slot.bindingToken != binding.token ||
           slot.itemVersion != item.version || !heights.containsKey(SizeKey(item.key, item.version, contentWidth(item)))) continue
@@ -610,6 +935,17 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
         // List semantics remain visible height, while ordinary observers use area.
         samples.add(VisibilitySample(ViewabilityIdentity(item.key, item.version), overlap * 100.0 / frame.height))
       }
+    }
+    for ((key, id) in pinned) {
+      val item = positionsByKey[key]?.let { entries[it] } ?: continue
+      val slot = slotViews[id] ?: continue
+      val binding = slots[id] ?: continue
+      if (item.role != "item" || slot.visibility != VISIBLE || slot.height <= 0 ||
+        slot.bindingToken != binding.token || slot.itemVersion != item.version || measuredTokens[id] != binding.token) continue
+      val clipFrame = pinnedFrames[id] ?: continue
+      val visibleTop = max(0f, clipFrame.y)
+      val overlap = minOf(height.toFloat(), clipFrame.y + clipFrame.height) - max(fixedHeaderBottom(), visibleTop)
+      if (overlap > 0) samples.add(VisibilitySample(ViewabilityIdentity(item.key, item.version), overlap * 100.0 / slot.height))
     }
     val result = viewabilityTracker.update(samples, now, interacted)
     publishViewableItems(result.visible.sortedBy { positionsByKey[it.key] })
@@ -818,17 +1154,22 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
 
   override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
     super.onMeasure(widthMeasureSpec, heightMeasureSpec)
-    recycler.measure(MeasureSpec.makeMeasureSpec(measuredWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(measuredHeight, MeasureSpec.EXACTLY))
+    recycler.measure(MeasureSpec.makeMeasureSpec(measuredWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(max(0, measuredHeight - insetHeight()), MeasureSpec.EXACTLY))
+    stickyLayer.measure(MeasureSpec.makeMeasureSpec(measuredWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(measuredHeight, MeasureSpec.EXACTLY))
+    refreshLayer.measure(MeasureSpec.makeMeasureSpec(measuredWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(measuredHeight, MeasureSpec.EXACTLY))
+    fixedHeader?.measure(MeasureSpec.makeMeasureSpec(measuredWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(headerHeightForPull(), MeasureSpec.EXACTLY))
     header?.measure(MeasureSpec.makeMeasureSpec(measuredWidth, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(px(configuration.headerHeight), MeasureSpec.EXACTLY))
   }
 
   override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
-    recycler.layout(0, 0, right - left, bottom - top)
+    recycler.layout(0, insetHeight(), right - left, bottom - top)
+    stickyLayer.layout(0, 0, right - left, bottom - top)
+    fixedHeader?.layout(0, 0, right - left, headerHeightForPull())
     header?.layout(0, 0, right - left, px(configuration.headerHeight))
-    // The configured header height may have changed while a pull is in progress.
-    header?.translationY = pullDistance - px(configuration.headerHeight)
-    header?.visibility = if (pullDistance > 0f) VISIBLE else INVISIBLE
+    applyHeaderTranslations()
+    updateSticky()
     syncSlotPositions()
+    scheduleMetrics()
   }
 
   override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -838,6 +1179,7 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
       heights.clear()
       measuredTokens.clear()
       holders.values.forEach { it.frame.visibility = INVISIBLE }
+      pinned.values.forEach { slotViews[it]?.visibility = INVISIBLE }
       recycler.post {
         if (!destroyed) {
           adapter.notifyDataSetChanged()
@@ -908,6 +1250,9 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
     estimatedStarts = null
     endAlignmentScheduled = false
     recycler.stopScroll()
+    cancelItemSeek()
+    removeCallbacks(deliverMetrics)
+    metricsScheduled = false
     cancelAnimation()
     removeCallbacks(ackTimeout)
     dragging = false
@@ -927,6 +1272,8 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
     destroyed = true
     NitroListRegistry.unregister(listId, this)
     onSnapshot = null
+    cancelItemSeek()
+    removeCallbacks(deliverMetrics)
     removeCallbacks(publishSnapshot)
     removeCallbacks(relayout)
     removeCallbacks(alignEnd)
@@ -942,6 +1289,8 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
     slots.clear()
     holders.clear()
     slotViews.clear()
+    pinnedFrames.clear()
+    stickyLayer.removeAllViews()
     heights.clear()
     measuredTokens.clear()
   }
@@ -956,6 +1305,13 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
     publishedVisible = null
     observedScrollState = "idle"
     previousScrollState = "idle"
+  }
+
+  private class OverlayFrame(context: ThemedReactContext) : FrameLayout(context), ReactPointerEventsView {
+    init { clipChildren = true; clipToPadding = true }
+    override val pointerEvents: PointerEvents get() = PointerEvents.BOX_NONE
+    // The list coordinates these children; FrameLayout must not reset pinned views to (0, 0).
+    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) = Unit
   }
 
   private class CellFrame(context: ThemedReactContext) : FrameLayout(context), ReactPointerEventsView {
@@ -988,6 +1344,17 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
     }
     override fun onBindViewHolder(holder: Cell, position: Int) {
       val item = entries[position]
+      val priorBinding = slots[holder.slotId]
+      if (priorBinding != null && pinned[priorBinding.key] == holder.slotId && priorBinding.key != item.key) {
+        holders.remove(holder.slotId)
+        holder.slotId = ""
+      }
+      val retained = pinned[item.key]
+      if (retained != null && holder.slotId != retained) {
+        if (holder.slotId.isNotEmpty()) releaseSlot(holder.slotId)
+        holders.remove(retained)?.let { if (it !== holder) it.slotId = "" }
+        holder.slotId = retained
+      }
       val old = slots[holder.slotId]
       val keepIdentity = old != null && old.active && old.key == item.key && old.type == item.type &&
         measuredTokens[holder.slotId] == old.token
@@ -1016,6 +1383,12 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
     }
     override fun onViewRecycled(holder: Cell) {
       val binding = slots[holder.slotId]
+      if (binding != null && pinned[binding.key] == holder.slotId) {
+        holders.remove(holder.slotId)
+        holder.slotId = ""
+        holder.frame.visibility = INVISIBLE
+        return
+      }
       if (binding != null) slots[holder.slotId] = binding.copy(active = false)
       holder.frame.visibility = INVISIBLE
       measuredTokens.remove(holder.slotId)
@@ -1037,6 +1410,7 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
     } else RecyclerView.LayoutParams(LayoutParams.MATCH_PARENT, contentHeight)
 
   private fun releaseSlot(slotId: String) {
+    if (pinned.values.contains(slotId)) return
     slotViews[slotId]?.let { (it.parent as? ViewGroup)?.removeView(it) }
     holders.remove(slotId)?.slotId = ""
     slots.remove(slotId)
@@ -1048,7 +1422,10 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
     private var nativeGesture = false
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
       super.onLayout(changed, left, top, right, bottom)
+      if (offsetNeedsSync) { continuousOffset = rawOffset().toFloat(); offsetNeedsSync = false }
+      updateSticky()
       syncSlotPositions()
+      scheduleMetrics()
       scheduleEndAlignment()
       scheduleEndCheck()
       scheduleScrollDelivery()
@@ -1077,6 +1454,8 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN -> {
         scrollGeneration++
+        cancelItemSeek()
+        frozenHeaderHeight = px(configuration.fixedHeaderHeight)
         downX = event.x
         downY = event.y
         dragging = false
@@ -1094,7 +1473,10 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
           return true
         }
       }
-      MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> if (!dragging) pullEligible = false
+      MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> if (!dragging) {
+        pullEligible = false
+        if (pullDistance == 0f) { frozenHeaderHeight = null; requestLayout() }
+      }
     }
     return dragging || super.onInterceptTouchEvent(event)
   }
@@ -1130,9 +1512,13 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
 
   private fun setPullDistance(value: Float) {
     pullDistance = value
-    recycler.translationY = value
-    header?.translationY = value - px(configuration.headerHeight)
-    header?.visibility = if (value > 0f) VISIBLE else INVISIBLE
+    if (value == 0f && !dragging && frozenHeaderHeight != null) {
+      frozenHeaderHeight = null
+      requestLayout()
+    }
+    applyHeaderTranslations()
+    updateSticky()
+    scheduleMetrics()
     syncSlotPositions()
     scheduleObservation()
     emit("topPullProgress", Arguments.createMap().apply {
@@ -1180,7 +1566,7 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
   private class ListEvent(surfaceId: Int, viewId: Int, private val name: String, private val data: WritableMap) : Event<ListEvent>(surfaceId, viewId) {
     override fun getEventName(): String = name
     override fun getEventData(): WritableMap = data
-    override fun canCoalesce(): Boolean = name == "topPullProgress" || name == "topListScroll"
+    override fun canCoalesce(): Boolean = name == "topPullProgress" || name == "topListScroll" || name == "topScrollMetrics"
   }
 
   companion object {

@@ -39,11 +39,26 @@ namespace margelo::nitro::nitrolist {
       double version = this->getFieldValue(fieldVersion);
       static const auto fieldFullSpan = clazz->getField<jboolean>("fullSpan");
       jboolean fullSpan = this->getFieldValue(fieldFullSpan);
+      static const auto fieldRole = clazz->getField<jni::JString>("role");
+      jni::local_ref<jni::JString> role = this->getFieldValue(fieldRole);
+      static const auto fieldStickyGroup = clazz->getField<jni::JString>("stickyGroup");
+      jni::local_ref<jni::JString> stickyGroup = this->getFieldValue(fieldStickyGroup);
+      static const auto fieldStickyLevel = clazz->getField<double>("stickyLevel");
+      double stickyLevel = this->getFieldValue(fieldStickyLevel);
+      static const auto fieldStickyTransition = clazz->getField<jni::JString>("stickyTransition");
+      jni::local_ref<jni::JString> stickyTransition = this->getFieldValue(fieldStickyTransition);
+      static const auto fieldStickyEndKey = clazz->getField<jni::JString>("stickyEndKey");
+      jni::local_ref<jni::JString> stickyEndKey = this->getFieldValue(fieldStickyEndKey);
       return ListItem(
         key->toStdString(),
         type->toStdString(),
         version,
-        static_cast<bool>(fullSpan)
+        static_cast<bool>(fullSpan),
+        role->toStdString(),
+        stickyGroup->toStdString(),
+        stickyLevel,
+        stickyTransition->toStdString(),
+        stickyEndKey->toStdString()
       );
     }
 
@@ -53,7 +68,7 @@ namespace margelo::nitro::nitrolist {
      */
     [[maybe_unused]]
     static jni::local_ref<JListItem::javaobject> fromCpp(const ListItem& value) {
-      using JSignature = JListItem(jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>, double, jboolean);
+      using JSignature = JListItem(jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>, double, jboolean, jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>, double, jni::alias_ref<jni::JString>, jni::alias_ref<jni::JString>);
       static const auto clazz = javaClassStatic();
       static const auto create = clazz->getStaticMethod<JSignature>("fromCpp");
       return create(
@@ -61,7 +76,12 @@ namespace margelo::nitro::nitrolist {
         jni::make_jstring(value.key),
         jni::make_jstring(value.type),
         value.version,
-        value.fullSpan
+        value.fullSpan,
+        jni::make_jstring(value.role),
+        jni::make_jstring(value.stickyGroup),
+        value.stickyLevel,
+        jni::make_jstring(value.stickyTransition),
+        jni::make_jstring(value.stickyEndKey)
       );
     }
   };

@@ -38,6 +38,9 @@ class NitroListViewManager : ViewGroupManager<NitroListView>(), NitroListViewMan
     "topEndReached" to mapOf("registrationName" to "onEndReached"),
     "topListScroll" to mapOf("registrationName" to "onListScroll"),
     "topListScrollStateChange" to mapOf("registrationName" to "onListScrollStateChange"),
+    "topScrollMetrics" to mapOf("registrationName" to "onScrollMetrics"),
+    "topStickyHeaderChange" to mapOf("registrationName" to "onStickyHeaderChange"),
+    "topScrollToItemFailed" to mapOf("registrationName" to "onScrollToItemFailed"),
     "topViewableItemsChange" to mapOf("registrationName" to "onViewableItemsChange"),
   )
   companion object { const val NAME = "NitroListView" }
@@ -53,6 +56,8 @@ class NitroListSlotViewManager : ViewGroupManager<NitroListSlotView>(), NitroLis
   override fun setListId(view: NitroListSlotView, value: String?) { view.listId = value.orEmpty() }
   @ReactProp(name = "slotId")
   override fun setSlotId(view: NitroListSlotView, value: String?) { view.slotId = value.orEmpty() }
+  @ReactProp(name = "accessoryRole")
+  override fun setAccessoryRole(view: NitroListSlotView, value: String?) { view.accessoryRole = value.orEmpty() }
   @ReactProp(name = "bindingToken")
   override fun setBindingToken(view: NitroListSlotView, value: Double) { view.bindingToken = value }
   @ReactProp(name = "itemVersion")
