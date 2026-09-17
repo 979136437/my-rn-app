@@ -101,6 +101,7 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
   private var endAlignmentScheduled = false
   private var endCheckScheduled = false
   private var endReachedLatched = false
+  private var pendingEndReachedRequest: Double? = null
   private var userScrolling = false
   private var estimatedStarts: IntArray? = null
   private var estimatedContentEnd = 0
@@ -202,7 +203,7 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
         if (userScrolling && dy < 0) {
           val viewport = recycler.height - recycler.paddingTop - recycler.paddingBottom
           if (viewport > 0 && endDistance()?.let { it > viewport * configuration.endReachedThreshold } == true) {
-            endReachedLatched = false
+            resetEndReached()
           }
         }
         scheduleEndCheck()
@@ -315,7 +316,7 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
     val nextDataKeys = value.filterNot { it.fullSpan }.map { it.key }
     if (dataKeys != nextDataKeys) {
       // Only a new data batch resets the latch; auxiliary and content revisions do not.
-      endReachedLatched = false
+      resetEndReached()
       dataKeys = nextDataKeys
     }
     scrollGeneration++
@@ -350,7 +351,7 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
   }
 
   internal fun setRefreshing(value: Boolean) {
-    if (value && !refreshing) endReachedLatched = false
+    if (value && !refreshing) resetEndReached()
     refreshing = value
     awaitingRefresh = false
     removeCallbacks(ackTimeout)
@@ -632,6 +633,21 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
     }
   }
 
+  private fun resetEndReached() {
+    endReachedLatched = false
+    pendingEndReachedRequest = null
+  }
+
+  internal fun resolveEndReached(requestId: Double, accepted: Boolean) {
+    // Old responses cannot unlock a newer data batch or a subsequent request.
+    if (pendingEndReachedRequest != requestId) return
+    pendingEndReachedRequest = null
+    if (!accepted) {
+      endReachedLatched = false
+      scheduleEndCheck()
+    }
+  }
+
   private fun checkEndReached() {
     if (destroyed || !isAttachedToWindow || dataKeys.isEmpty()) return
     val viewport = recycler.height - recycler.paddingTop - recycler.paddingBottom
@@ -650,7 +666,10 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
     val distance = endDistance() ?: return
     if (distance > threshold) return
     endReachedLatched = true
+    val requestId = (++nextEndReachedRequest).toDouble()
+    pendingEndReachedRequest = requestId
     emit("topEndReached", Arguments.createMap().apply {
+      putDouble("requestId", requestId)
       putInt("dataCount", dataKeys.size)
       putString("tailKey", dataKeys.last())
       putDouble("epoch", configuration.endReachedEpoch)
@@ -1165,6 +1184,8 @@ class NitroListView(private val reactContext: ThemedReactContext) : ReactViewGro
   }
 
   companion object {
+    // UI-thread-only and shared across view instances so late responses cannot collide.
+    private var nextEndReachedRequest = 0L
     private const val MAX_IDLE_PER_TYPE = 5
     private const val MAX_IDLE_TOTAL = 40
   }

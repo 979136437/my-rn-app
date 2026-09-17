@@ -52,6 +52,10 @@ abstract class HybridNitroListControllerSpec: HybridObject() {
   
   @DoNotStrip
   @Keep
+  abstract fun resolveEndReached(requestId: Double, accepted: Boolean): Unit
+  
+  @DoNotStrip
+  @Keep
   abstract fun reportMeasurement(slotId: String, token: Double, version: Double, width: Double, height: Double): Unit
   
   @DoNotStrip

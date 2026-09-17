@@ -92,6 +92,10 @@ namespace margelo::nitro::nitrolist {
     static const auto method = _javaPart->javaClassStatic()->getMethod<void(jboolean /* refreshing */)>("setRefreshing");
     method(_javaPart, refreshing);
   }
+  void JHybridNitroListControllerSpec::resolveEndReached(double requestId, bool accepted) {
+    static const auto method = _javaPart->javaClassStatic()->getMethod<void(double /* requestId */, jboolean /* accepted */)>("resolveEndReached");
+    method(_javaPart, requestId, accepted);
+  }
   void JHybridNitroListControllerSpec::reportMeasurement(const std::string& slotId, double token, double version, double width, double height) {
     static const auto method = _javaPart->javaClassStatic()->getMethod<void(jni::alias_ref<jni::JString> /* slotId */, double /* token */, double /* version */, double /* width */, double /* height */)>("reportMeasurement");
     method(_javaPart, jni::make_jstring(slotId), token, version, width, height);

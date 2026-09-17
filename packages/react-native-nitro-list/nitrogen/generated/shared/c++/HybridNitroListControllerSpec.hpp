@@ -62,6 +62,7 @@ namespace margelo::nitro::nitrolist {
       virtual void configure(const ListConfig& config) = 0;
       virtual void setItems(const std::vector<ListItem>& items) = 0;
       virtual void setRefreshing(bool refreshing) = 0;
+      virtual void resolveEndReached(double requestId, bool accepted) = 0;
       virtual void reportMeasurement(const std::string& slotId, double token, double version, double width, double height) = 0;
       virtual void scrollToOffset(double offset, bool animated) = 0;
       virtual void scrollToEnd(bool animated) = 0;

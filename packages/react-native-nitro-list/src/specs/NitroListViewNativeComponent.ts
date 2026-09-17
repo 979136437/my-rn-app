@@ -22,7 +22,7 @@ export interface NativeProps extends ViewProps {
   onListScroll?: CodegenTypes.DirectEventHandler<NativeListScrollEvent>;
   onListScrollStateChange?: CodegenTypes.DirectEventHandler<NativeListScrollEvent>;
   onViewableItemsChange?: CodegenTypes.DirectEventHandler<NativeViewableItemsEvent>;
-  onEndReached?: CodegenTypes.DirectEventHandler<Readonly<{ dataCount: CodegenTypes.Int32; tailKey: string; epoch: CodegenTypes.Double }>>;
+  onEndReached?: CodegenTypes.DirectEventHandler<Readonly<{ dataCount: CodegenTypes.Int32; tailKey: string; epoch: CodegenTypes.Double; requestId: CodegenTypes.Double }>>;
   onRefreshRequested?: CodegenTypes.DirectEventHandler<Readonly<{ sequence: CodegenTypes.Int32 }>>;
   onRefreshStateChange?: CodegenTypes.DirectEventHandler<Readonly<{ state: string }>>;
   onPullProgress?: CodegenTypes.DirectEventHandler<Readonly<{ distance: CodegenTypes.Double; progress: CodegenTypes.Double }>>;

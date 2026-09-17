@@ -345,13 +345,16 @@ function NitroListAndroid<T>({
     if (refreshStates.has(state)) setRefreshState(state);
   }, []);
   const onRefreshRequested = useCallback(() => { callbacks.current.onRefresh?.(); }, []);
-  const onNativeEndReached = useCallback((event: NativeSyntheticEvent<{ dataCount: number; tailKey: string; epoch: number }>) => {
+  const onNativeEndReached = useCallback((event: NativeSyntheticEvent<{ dataCount: number; tailKey: string; epoch: number; requestId: number }>) => {
     const current = committedData.current;
-    if (!mounted.current || !callbacks.current.endReachedEnabled || !current?.dataCount) return;
-    if (event.nativeEvent.epoch !== callbacks.current.endReachedEpoch) return;
-    // Ignore an event queued before a refresh/replacement/append committed in JS.
-    if (event.nativeEvent.dataCount !== current.dataCount || event.nativeEvent.tailKey !== current.tailKey) return;
-    callbacks.current.onEndReached?.();
+    const handlers = callbacks.current;
+    const payload = event.nativeEvent;
+    const accepted = mounted.current && handlers.endReachedEnabled && !!current?.dataCount &&
+      payload.epoch === handlers.endReachedEpoch && payload.dataCount === current.dataCount && payload.tailKey === current.tailKey;
+    // A discarded in-flight event must not consume the native pagination latch.
+    // Acknowledge before business code can synchronously commit another dataset.
+    controller.current?.resolveEndReached(payload.requestId, accepted);
+    if (accepted) handlers.onEndReached?.();
   }, []);
   const onNativeScroll = useCallback((event: NativeSyntheticEvent<NativeListScrollEvent>) => {
     if (!mounted.current || !scrollStates.has(event.nativeEvent.state)) return;

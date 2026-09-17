@@ -67,6 +67,10 @@ open class HybridNitroListController : HybridNitroListControllerSpec() {
     onUI { this.refreshing = refreshing; currentView?.setRefreshing(refreshing) }
   }
 
+  override fun resolveEndReached(requestId: Double, accepted: Boolean) {
+    onUI { currentView?.resolveEndReached(requestId, accepted) }
+  }
+
   override fun reportMeasurement(slotId: String, token: Double, version: Double, width: Double, height: Double) {
     onUI { currentView?.reportMeasurement(slotId, token, version, width, height) }
   }

@@ -54,6 +54,7 @@ export interface NitroListController extends HybridObject<{ android: 'kotlin' }>
   configure(config: ListConfig): void;
   setItems(items: ListItem[]): void;
   setRefreshing(refreshing: boolean): void;
+  resolveEndReached(requestId: number, accepted: boolean): void;
   reportMeasurement(slotId: string, token: number, version: number, width: number, height: number): void;
   scrollToOffset(offset: number, animated: boolean): void;
   scrollToEnd(animated: boolean): void;

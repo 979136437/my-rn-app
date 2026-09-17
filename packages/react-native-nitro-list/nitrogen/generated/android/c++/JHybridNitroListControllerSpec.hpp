@@ -58,6 +58,7 @@ namespace margelo::nitro::nitrolist {
     void configure(const ListConfig& config) override;
     void setItems(const std::vector<ListItem>& items) override;
     void setRefreshing(bool refreshing) override;
+    void resolveEndReached(double requestId, bool accepted) override;
     void reportMeasurement(const std::string& slotId, double token, double version, double width, double height) override;
     void scrollToOffset(double offset, bool animated) override;
     void scrollToEnd(bool animated) override;

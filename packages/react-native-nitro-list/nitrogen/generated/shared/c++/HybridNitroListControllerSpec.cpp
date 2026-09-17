@@ -18,6 +18,7 @@ namespace margelo::nitro::nitrolist {
       prototype.registerHybridMethod("configure", &HybridNitroListControllerSpec::configure);
       prototype.registerHybridMethod("setItems", &HybridNitroListControllerSpec::setItems);
       prototype.registerHybridMethod("setRefreshing", &HybridNitroListControllerSpec::setRefreshing);
+      prototype.registerHybridMethod("resolveEndReached", &HybridNitroListControllerSpec::resolveEndReached);
       prototype.registerHybridMethod("reportMeasurement", &HybridNitroListControllerSpec::reportMeasurement);
       prototype.registerHybridMethod("scrollToOffset", &HybridNitroListControllerSpec::scrollToOffset);
       prototype.registerHybridMethod("scrollToEnd", &HybridNitroListControllerSpec::scrollToEnd);
