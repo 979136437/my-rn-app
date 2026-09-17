@@ -29,12 +29,33 @@ You can start developing by editing the files inside the **app** directory. This
 
 Use pnpm 10.33.0, as specified in `package.json`.
 
+The project uses `node-linker=hoisted` in `.npmrc` to keep native dependency
+paths short on Windows. This avoids deeply nested pnpm paths causing the
+Android SDK's Ninja to repeatedly regenerate `build.ninja`.
+
 The root Expo app is automatically included in the workspace. Additional apps
 can be added under `apps/*` and shared packages under `packages/*`, each with its
 own `package.json`. Declare local package dependencies with `workspace:*`.
 
 Run `pnpm install` from the workspace root to install dependencies for all packages.
 Use `pnpm --filter <package-name> <script>` to run a script in a specific package.
+
+## Android 国内 Maven 镜像
+
+Android 主工程及其依赖子项目的 Google Maven、Maven Central 使用阿里云镜像：
+
+- Google Maven：`https://maven.aliyun.com/repository/google`
+- Maven Central：`https://maven.aliyun.com/repository/central`
+
+`plugins/withAndroidMavenMirrors.js` 在 Expo 生成原生工程时将配置写入
+`android/settings.gradle`，覆盖项目依赖和各子项目的 `buildscript` 依赖仓库，
+包括 Gesture Handler、Screens 和 Expo Dev Launcher。当前原生工程也已同步。
+后续重新生成原生工程会保留此配置，不需要修改 `node_modules` 或清空 Gradle 缓存。
+
+镜像配置保留 HTTPS 和证书校验。Gradle distribution、npm、JitPack，以及
+React Native/Expo 插件自身独立 included build 的仓库不在此配置范围内。
+本机的 Gradle 代理设置仍然生效；若代理对国内域名不稳定，需要在代理软件中将
+`maven.aliyun.com` 设置为直连。镜像连通性已检查，尚未通过项目构建验证。
 
 ## Get a fresh project
 
