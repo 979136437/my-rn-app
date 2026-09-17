@@ -1,0 +1,173 @@
+# Codemagic CI/CD：只打包 iOS 未签名 IPA
+# 控制台：https://codemagic.io/
+#
+# 设计要点：
+# 1. ios/ 由 `expo prebuild` 生成且未纳入版本控制，流水线每次在 macOS 上重新生成。
+# 2. 全程不依赖 Apple 开发者账号：xcodebuild 关闭代码签名产出 .app，再自行压成 Payload/*.ipa。
+#    未签名 IPA 不能直接安装到设备，需要后续用证书重签（或用 EAS Build 签名分发）。
+# 3. 需要可安装 / 可上架产物时，按文末注释改用 Codemagic 代码签名或 EAS Build。
+
+workflows:
+  ios-dev-client-unsigned:
+    name: 打包 iOS 未签名 IPA
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+    environment:
+      node: 20.19.4
+      vars:
+        EXPO_NO_TELEMETRY: "1"
+        PNPM_VERSION: 10.33.0
+        IPA_NAME: my-app-dev-client-unsigned
+    cache:
+      cache_paths:
+        - $HOME/.local/share/pnpm/store
+        - $HOME/Library/pnpm/store
+        - $HOME/.cocoapods/repos
+        - $HOME/Library/Caches/CocoaPods
+        # 整个 ios/ 一起缓存：只缓存 ios/Pods 会导致 Podfile 与工程缺失，无法复用
+        - ios
+        - build
+    triggering:
+      events:
+        - push
+        - tag
+      branch_patterns:
+        - pattern: master
+          include: true
+      tag_patterns:
+        - pattern: "v*"
+          include: true
+      cancel_previous_builds: true
+    scripts:
+      - name: 安装 pnpm 与项目依赖
+        script: |
+          set -e
+          # Codemagic 镜像自带 pnpm，用 --force 覆盖为 package.json 指定的版本
+          npm install -g "pnpm@$PNPM_VERSION" --force
+          pnpm --version
+          pnpm install --frozen-lockfile
+
+      - name: 生成 iOS 原生工程（按锁文件哈希复用缓存）
+        script: |
+          set -e
+          # app.json 决定原生工程配置，与锁文件一起参与哈希，避免复用过期工程
+          LOCK_HASH=$(cat pnpm-lock.yaml app.json | shasum | awk '{print $1}')
+          CACHE_FLAG_FILE=build/dependency_hash.txt
+          mkdir -p build
+          if [ -f ios/Podfile ] && [ -f "$CACHE_FLAG_FILE" ] && [ "$(cat "$CACHE_FLAG_FILE")" = "$LOCK_HASH" ]; then
+            echo "依赖与原生配置未变化，保留 ios/ 与 Pods，执行不清理的增量 prebuild"
+            npx expo prebuild --platform ios --no-install --no-clean
+          else
+            echo "首次构建或依赖、原生配置变化，清理后重新生成 ios/"
+            rm -rf ios build/*
+            npx expo prebuild --platform ios --clean --no-install
+            echo "$LOCK_HASH" > "$CACHE_FLAG_FILE"
+          fi
+
+      - name: 关闭签名并安装 CocoaPods 依赖
+        script: |
+          set -e
+          cd ios
+          export PATH="$PATH:$HOME/.nvm/versions/node/$(node -v)/bin"
+          if [ ! -f Podfile ]; then
+            echo "未找到 ios/Podfile，prebuild 未正确生成 iOS 工程"
+            exit 1
+          fi
+          python3 - <<'PY'
+          with open('Podfile', 'r') as f:
+              content = f.read()
+
+          hook = '''
+          post_install do |installer|
+            installer.pods_project.targets.each do |target|
+              target.build_configurations.each do |config|
+                config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+                config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
+                config.build_settings['CODE_SIGN_IDENTITY'] = ''
+                config.build_settings['EXPANDED_CODE_SIGN_IDENTITY'] = ''
+              end
+            end
+          end
+          '''
+
+          if 'post_install' in content:
+              print('Podfile 已包含 post_install，构建阶段用 xcodebuild 参数关闭签名')
+          else:
+              with open('Podfile', 'a') as f:
+                  f.write(hook)
+              print('已向 Podfile 追加免签名 post_install')
+          PY
+          pod install
+
+      - name: 构建未签名 .app
+        script: |
+          set -e
+          cd ios
+          export PATH="$PATH:$HOME/.nvm/versions/node/$(node -v)/bin"
+
+          WORKSPACE=$(ls -d *.xcworkspace | head -n 1)
+          PROJECT=$(ls -d *.xcodeproj | head -n 1)
+          APP_NAME=$(basename "$PROJECT" .xcodeproj)
+          SCHEME=$(xcodebuild -project "$PROJECT" -list -json | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          schemes = [s for s in data['project']['schemes'] if not s.endswith('Tests')]
+          print(schemes[0] if schemes else '$APP_NAME')
+          ")
+          echo "workspace=$WORKSPACE project=$PROJECT scheme=$SCHEME"
+
+          xcodebuild -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Debug \
+            -sdk iphoneos \
+            -derivedDataPath ../build \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            DEBUG_INFORMATION_FORMAT=dwarf-with-dsym \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            build
+
+      - name: 打包未签名 IPA
+        script: |
+          set -e
+          APP_PATH=$(ls -d build/Build/Products/Debug-iphoneos/*.app 2>/dev/null | head -n 1 || true)
+          if [ -z "$APP_PATH" ]; then
+            APP_PATH=$(find build -name "*.app" -type d | head -n 1)
+          fi
+          if [ -z "$APP_PATH" ]; then
+            echo "未在 build/ 中找到构建产物 .app，无法打包 IPA"
+            exit 1
+          fi
+          echo "捕获到应用产物：$APP_PATH"
+
+          rm -rf Payload
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          rm -f "$IPA_NAME.ipa"
+          zip -qry "$IPA_NAME.ipa" Payload
+          ls -lh "$IPA_NAME.ipa"
+          echo "未签名 IPA 打包完成，安装到设备前需要用证书重签。"
+    artifacts:
+      - $IPA_NAME.ipa
+      - build/Build/Products/Debug-iphoneos/*.app.dSYM
+
+# 需要可安装 / 可上架产物时，改用 Codemagic 代码签名（先在应用设置中注册 App Store Connect API key）：
+#
+#    environment:
+#      ios_signing:
+#        distribution_type: development   # 或 ad_hoc / app_store / enterprise
+#        bundle_identifier: com.x18588283042.myapp
+#    integrations:
+#      app_store_connect: <Codemagic 中的集成名称>
+#    scripts:
+#      - name: 初始化钥匙串并生成描述文件
+#        script: |
+#          keychain initialize
+#          app-store-connect fetch-signing-files "$BUNDLE_ID" --type IOS_APP_DEVELOPMENT --create
+#          keychain add-certificates
+#          xcode-project use-profiles
+#      - name: 构建并导出 IPA
+#        script: |
+#          xcode-project build-ipa --workspace "$XCODE_WORKSPACE" --scheme "$XCODE_SCHEME"

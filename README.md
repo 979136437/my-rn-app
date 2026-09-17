@@ -95,6 +95,39 @@ React Native/Expo 插件自身独立 included build 的仓库不在此配置范�
 本机的 Gradle 代理设置仍然生效；若代理对国内域名不稳定，需要在代理软件中将
 `maven.aliyun.com` 设置为直连。镜像连通性已检查，尚未通过项目构建验证。
 
+## 持续集成（Codemagic）
+
+远程仓库为 `git@github.com:979136437/my-rn-app.git`（`origin`，主分支 `master`），
+流水线定义在仓库根目录 `codemagic.yaml`，目前只打包 iOS。
+
+工作流 `ios-dev-client-unsigned`（`打包 iOS 未签名 IPA`）在 Apple M2 机器上执行：
+安装依赖 → 按锁文件哈希决定是否复用 `ios/` 缓存 → `expo prebuild --platform ios`
+生成原生工程 → 关闭 Pods 签名并 `pod install` → `xcodebuild` 产出未签名 `.app`
+→ 自行装入 `Payload/` 压成 IPA。产物为 `my-app-dev-client-unsigned.ipa`
+（另有 `*.app.dSYM`）。触发条件是推送到 `master` 或推送 `v*` 标签。
+
+未签名 IPA 全程不需要 Apple 开发者账号，但不能直接安装到设备，需要用证书重签；
+需要可安装或可上架产物时，按 `codemagic.yaml` 末尾注释改用 Codemagic 代码签名
+（`ios_signing` + App Store Connect 集成）或 EAS Build。
+
+`ios/` 是 prebuild 生成目录且不纳入版本控制，流水线每次构建都会重新生成，
+所以 `codemagic.yaml` 中的 prebuild 步骤不能省略。`app.json` 中的
+`ios.bundleIdentifier` 是 prebuild 非交互执行的必需配置。
+
+接入步骤：
+
+1. 在 https://codemagic.io/ 使用 GitHub 账号登录并授权 Codemagic GitHub App，
+   可只授权 `979136437/my-rn-app`。
+2. Add application → 选择该仓库，项目类型选择 React Native（或 Other）。
+   添加完成后 Codemagic 直接读取根目录的 `codemagic.yaml`，无需在界面重复配置命令。
+   首次构建可直接在 Codemagic 界面点 Start new build；未签名打包不需要任何额外凭据。
+
+注意：`packages/react-native-nitro-list`、`react-native-nitro-picker`、
+`react-native-nitro-viewability` 的 iOS 原生迁移已完成源码层面工作（`ios: null` 已移除，
+`*.podspec` 与 `nitrogen/generated/ios` 已提交），但尚未经过原生编译与设备验收。
+`react-native-nitro-list` 的 UICollectionView/Fabric 组件实现属于后续阶段；
+在该阶段完成前，IPA 可编译但列表的原生滚动功能在 iOS 上不可用。
+
 ## Get a fresh project
 
 When you're ready, run:

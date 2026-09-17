@@ -42,6 +42,6 @@ example
 /ios
 /android
 
-/android/build/
-/android/.cxx/
-/android/.gradle/
+build/
+.cxx/
+.gradle/
