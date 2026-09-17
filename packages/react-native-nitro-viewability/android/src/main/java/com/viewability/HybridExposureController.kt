@@ -13,7 +13,11 @@ import android.view.ViewTreeObserver
 import com.facebook.react.bridge.LifecycleEventListener
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.common.LifecycleState
+import com.facebook.react.modules.i18nmanager.I18nUtil
+import com.facebook.react.uimanager.BackgroundStyleApplicator
 import com.facebook.react.uimanager.UIManagerHelper
+import com.facebook.react.uimanager.style.LogicalEdge
+import com.facebook.react.views.view.ReactViewGroup
 import com.margelo.nitro.NitroModules
 import com.margelo.nitro.viewability.ExposureConfig
 import com.margelo.nitro.viewability.ExposureEvent
@@ -243,6 +247,12 @@ open class HybridExposureController : HybridExposureControllerSpec(), LifecycleE
       if (node.visibility != View.VISIBLE || node.alpha <= 0f) return 0.0
       node.clipBounds?.let { if (!visible.intersect(boundsOnScreen(node, RectF(it)))) return 0.0 }
       if (node !== view && node is ViewGroup) {
+        // RN draws overflow clipping on Canvas even when clipChildren is false.
+        // getClipBounds only exposes it behind an optional RN feature flag.
+        if (node is ReactViewGroup && (node.overflow == "hidden" || node.overflow == "scroll")) {
+          val paddingBox = reactPaddingBox(node)
+          if (paddingBox.isEmpty || !visible.intersect(boundsOnScreen(node, paddingBox))) return 0.0
+        }
         if (node.clipChildren && !visible.intersect(boundsOnScreen(node, RectF(0f, 0f, node.width.toFloat(), node.height.toFloat())))) return 0.0
         if (node.clipToPadding && (node.paddingLeft != 0 || node.paddingTop != 0 || node.paddingRight != 0 || node.paddingBottom != 0)) {
           val padded = RectF(node.paddingLeft.toFloat(), node.paddingTop.toFloat(),
@@ -253,6 +263,22 @@ open class HybridExposureController : HybridExposureControllerSpec(), LifecycleE
       ancestor = node.parent as? View
     }
     return (visible.width().toDouble() * visible.height().toDouble() / area * 100.0).coerceIn(0.0, 100.0)
+  }
+
+  /** RN's padding box excludes borders, not content padding; rounded corners stay approximate. */
+  private fun reactPaddingBox(view: ReactViewGroup): RectF {
+    fun border(vararg edges: LogicalEdge): Float =
+      (edges.firstNotNullOfOrNull { BackgroundStyleApplicator.getBorderWidth(view, it) } ?: 0f) *
+        view.resources.displayMetrics.density
+    val rtl = view.layoutDirection == View.LAYOUT_DIRECTION_RTL
+    val swap = rtl && I18nUtil.instance.doLeftAndRightSwapInRTL(view.context)
+    val left = border(if (rtl) LogicalEdge.END else LogicalEdge.START,
+      if (swap) LogicalEdge.RIGHT else LogicalEdge.LEFT, LogicalEdge.HORIZONTAL, LogicalEdge.ALL)
+    val right = border(if (rtl) LogicalEdge.START else LogicalEdge.END,
+      if (swap) LogicalEdge.LEFT else LogicalEdge.RIGHT, LogicalEdge.HORIZONTAL, LogicalEdge.ALL)
+    val top = border(LogicalEdge.BLOCK_START, LogicalEdge.TOP, LogicalEdge.BLOCK, LogicalEdge.VERTICAL, LogicalEdge.ALL)
+    val bottom = border(LogicalEdge.BLOCK_END, LogicalEdge.BOTTOM, LogicalEdge.BLOCK, LogicalEdge.VERTICAL, LogicalEdge.ALL)
+    return RectF(left, top, view.width - right, view.height - bottom)
   }
 
   private fun boundsOnScreen(view: View, rect: RectF): RectF {
