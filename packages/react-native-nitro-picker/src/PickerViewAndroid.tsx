@@ -1,6 +1,6 @@
 import { Children, isValidElement, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactElement } from 'react';
-import { findNodeHandle, ScrollView, StyleSheet, View } from 'react-native';
+import { findNodeHandle, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import type { LayoutChangeEvent, ViewStyle } from 'react-native';
 import { NitroModules } from 'react-native-nitro-modules';
 import { PickerViewColumn } from './PickerViewColumn';
@@ -194,7 +194,7 @@ function Column({ descriptor, columnIndex, selectedIndex, sourceEpoch, itemHeigh
         JS handler; that would bypass the ScrollView's Nitro touch listener. */}
     <ScrollView ref={scroll} style={styles.scroll}
       contentContainerStyle={{ paddingVertical: padding, pointerEvents: 'none' }}
-      scrollEnabled={false} disableScrollViewPanResponder
+      scrollEnabled={Platform.OS === 'ios'} disableScrollViewPanResponder
       showsVerticalScrollIndicator={false} overScrollMode="never"
       removeClippedSubviews={false} accessible={false} importantForAccessibility="no-hide-descendants">
       <View pointerEvents="none" collapsable={false}>

@@ -6,7 +6,6 @@ module.exports = {
         packageImportPath: 'import com.nitropicker.NitroPickerPackage;',
         packageInstance: 'new NitroPickerPackage()',
       },
-      ios: null,
     },
   },
 };

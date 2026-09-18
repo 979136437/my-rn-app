@@ -160,7 +160,7 @@ export default function ListDemoPage({ title, layout, count }: { title: string; 
   const [favorites, setFavorites] = useState<ReadonlySet<string>>(() => new Set());
   const [refreshing, setRefreshing] = useState(false);
   const [diagnostics, setDiagnostics] = useState(EMPTY_DIAGNOSTICS);
-  const available = Platform.OS === "android" && Constants.executionEnvironment !== ExecutionEnvironment.StoreClient;
+  const available = (Platform.OS === "android" || Platform.OS === "ios") && Constants.executionEnvironment !== ExecutionEnvironment.StoreClient;
 
   const cancelRequests = useCallback(() => {
     requestVersion.current += 1;
@@ -223,7 +223,7 @@ export default function ListDemoPage({ title, layout, count }: { title: string; 
   return <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
     <Stack.Screen options={{ headerShown: false }} />
     <View style={styles.header}>
-      <Text style={styles.eyebrow}>NITRO LIST / ANDROID PROTOTYPE</Text>
+      <Text style={styles.eyebrow}>NITRO LIST / NATIVE PROTOTYPE</Text>
       <Choice label="← 首页目录" onPress={() => router.canGoBack() ? router.back() : router.replace("/")} />
       <Text style={styles.heading}>{title}</Text>
       <Text style={styles.subtitle}>原生列表 · 分页加载 · 头尾与空状态</Text>
@@ -312,8 +312,8 @@ export default function ListDemoPage({ title, layout, count }: { title: string; 
       refreshThreshold={64}
       onDiagnostics={setDiagnostics}
     /> : <View style={styles.unavailable}>
-      <Text style={styles.unavailableTitle}>在 Android 开发构建中打开</Text>
-      <Text style={styles.unavailableText}>此原型包含自定义原生模块，需要重新构建包含 react-native-nitro-list 与 react-native-nitro-viewability 的 Android development build，Expo Go 无法加载。iOS 与 Web 暂未实现。</Text>
+      <Text style={styles.unavailableTitle}>在原生开发构建中打开</Text>
+      <Text style={styles.unavailableText}>此原型包含自定义原生模块，需要包含 react-native-nitro-list 与 react-native-nitro-viewability 的 Android 或 iOS development build。Expo Go 无法加载，Web 暂未实现。</Text>
     </View>}
     <Text style={styles.footer}>原型 · 尚未完成原生编译与设备验收 · 图片来自 picsum.photos</Text>
   </View>;

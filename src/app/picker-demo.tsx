@@ -21,7 +21,7 @@ function Button({ title, onPress }: { title: string; onPress: () => void }) {
 }
 
 function PickerExamples() {
-  // Only resolve the Android module after checking the platform and Expo Go.
+  // Resolve the native module only after checking the platform and Expo Go.
   const { PickerView, PickerViewColumn } = require('react-native-nitro-picker') as typeof import('react-native-nitro-picker');
   const [season, setSeason] = useState(1);
   const [date, setDate] = useState([2, 8, 16]);
@@ -115,7 +115,7 @@ function PickerExamples() {
 
 export default function PickerDemo() {
   const insets = useSafeAreaInsets();
-  const available = Platform.OS === 'android' && Constants.executionEnvironment !== ExecutionEnvironment.StoreClient;
+  const available = (Platform.OS === 'android' || Platform.OS === 'ios') && Constants.executionEnvironment !== ExecutionEnvironment.StoreClient;
   return <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
     <Stack.Screen options={{ headerShown: false }} />
     <View style={styles.heading}>
@@ -124,8 +124,8 @@ export default function PickerDemo() {
     </View>
     <ScrollView contentContainerStyle={styles.content} nestedScrollEnabled>
       {available ? <PickerExamples /> : <View style={styles.card}>
-        <Text style={styles.cardTitle}>需要 Android 开发构建</Text>
-        <Text style={styles.copy}>请在包含 react-native-nitro-picker 的 Android development build 中打开。Expo Go 无法加载自定义原生模块，iOS 和 Web 暂未实现。</Text>
+        <Text style={styles.cardTitle}>需要原生开发构建</Text>
+        <Text style={styles.copy}>请在包含 react-native-nitro-picker 的 Android 或 iOS development build 中打开。Expo Go 无法加载自定义原生模块，Web 暂未实现。</Text>
       </View>}
     </ScrollView>
   </View>;

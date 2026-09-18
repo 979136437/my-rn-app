@@ -12,7 +12,6 @@ module.exports = {
           'NitroListSlotViewComponentDescriptor',
         ],
       },
-      ios: null,
     },
   },
 };

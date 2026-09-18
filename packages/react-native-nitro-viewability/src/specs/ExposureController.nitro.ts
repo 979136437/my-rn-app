@@ -18,7 +18,7 @@ export interface ExposureEvent {
   error?: string;
 }
 
-export interface ExposureController extends HybridObject<{ android: 'kotlin' }> {
+export interface ExposureController extends HybridObject<{ android: 'kotlin'; ios: 'swift' }> {
   observe(targetTag: number, config: ExposureConfig, callback: (event: ExposureEvent) => void): void;
   configure(config: ExposureConfig): void;
   disconnect(): void;

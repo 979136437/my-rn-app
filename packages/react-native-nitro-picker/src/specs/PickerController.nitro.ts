@@ -16,7 +16,7 @@ export interface PickerEvent {
 }
 
 /** One native controller per Fabric ScrollView column. */
-export interface PickerController extends HybridObject<{ android: 'kotlin' }> {
+export interface PickerController extends HybridObject<{ android: 'kotlin'; ios: 'swift' }> {
   connect(viewTag: number, config: PickerConfig, callback: (event: PickerEvent) => void): void;
   configure(config: PickerConfig): void;
   step(delta: number): void;

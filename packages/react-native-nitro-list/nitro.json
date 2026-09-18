@@ -4,6 +4,10 @@
   "android": { "androidNamespace": ["nitrolist"], "androidCxxLibName": "NitroList" },
   "autolinking": {
     "NitroListController": {
+      "ios": {
+        "language": "swift",
+        "implementationClassName": "HybridNitroListController"
+      },
       "android": {
         "language": "kotlin",
         "implementationClassName": "HybridNitroListControllerRegistration"

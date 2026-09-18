@@ -40,7 +40,7 @@ own `package.json`. Declare local package dependencies with `workspace:*`.
 Run `pnpm install` from the workspace root to install dependencies for all packages.
 Use `pnpm --filter <package-name> <script>` to run a script in a specific package.
 
-## Android 原生列表与功能测试
+## Android 与 iOS 原生列表及功能测试
 
 Workspace 包 [react-native-nitro-list](packages/react-native-nitro-list/README.md)
 公开 `NativeList`、`NativeSectionList`、`useListContext` 和 `useRecyclingState`。
@@ -52,14 +52,14 @@ Workspace 包 [react-native-nitro-list](packages/react-native-nitro-list/README.
 应用实际路由目录是 `src/app`。首页改为入口目录，原瀑布流、普通列表、分页、短列表、空列表、1,000 条、10,000 条选项分别打开 `src/app/list-demos` 下的独立页面，并提供“列表功能测试”入口，
 打开 `/nitro-list-tests` 测试目录，分别进入头部与刷新、分组与吸顶、Hook 与透明头部、平面列表定位、分组列表定位五个独立页面。
 测试页面使用本地数据，提供模式开关、操作说明、事件日志、指标和场景重置。
-同场景配置切换保留列表实例，便于观察动态布局问题；Expo Go、iOS 和 Web 显示不可用说明。
+同场景配置切换保留列表实例，便于观察动态布局问题；Expo Go 和 Web 显示不可用说明。
 
-需要包含自定义原生包的 Android development build。更新原生代码后需要由开发者
+需要包含自定义原生包的 Android 或 iOS development build。更新原生代码后需要由开发者
 明确执行重新构建，Metro 热更新不能替代。当前未执行原生编译或设备验收；
 交互测试页面及静态检查不代表手势、吸顶复用、定位精度和性能已经通过验收。
 完整 API、示例、坐标规则及待验收清单见包 README。
 
-## Android 组件曝光
+## Android 与 iOS 组件曝光
 
 Workspace 包 [react-native-nitro-viewability](packages/react-native-nitro-viewability/README.md)
 提供 `ExposureObserver` 包装组件和 `useExposureObserver` 无包装 Hook，基于同一
@@ -67,16 +67,16 @@ Nitro 原生会话计算可见面积和连续停留时间。Hook ref 应指向�
 `collapsable={false}` 的原生 View；路由失焦或业务浮层覆盖时由调用方设置 `active=false`。
 默认阈值为 `50%`、停留 `0 ms`，重新进入可再次曝光，业务自行去重。
 纯可见性监控可只使用 `onVisibilityChange`，将停留时间设为 `0` 来控制视频暂停。
-Android 窗口失焦（例如通知栏导致失焦）或宿主暂停时通知不可见并清空计时，
+原生窗口失焦或宿主暂停时通知不可见并清空计时，
 恢复获焦后重新判断；路由焦点仍需通过 `active` 传入，恢复播放由业务决定。
 
 演示页包含包装广告、Hook 按钮、暂停 / 恢复开关与重新进入计数，同时保留
 NativeList 的 `onViewableItemsChanged`。独立观察按面积计算；NativeList 复用同一
-Kotlin tracker，但保留列表垂直可见高度比例、槽位版本与业务索引语义。
+平台对应的原生观察逻辑，但保留列表垂直可见高度比例、槽位版本与业务索引语义。
 观察不识别兄弟浮层、圆角或任意形状的像素遮挡。
 
-首版仅支持 Android，Expo Go 不支持。接入或更新原生代码后需要重新构建
-Android development build；Metro 热更新不能替代。当前未完成原生编译与设备运行验收。
+Expo Go 不支持。接入或更新原生代码后需要重新构建 Android 或 iOS
+development build；Metro 热更新不能替代。iOS 原生编译与设备运行尚未验收。
 
 ## Android 国内 Maven 镜像
 
@@ -101,7 +101,7 @@ React Native/Expo 插件自身独立 included build 的仓库不在此配置范�
 流水线定义在仓库根目录 `codemagic.yaml`，目前只打包 iOS。
 
 工作流 `ios-dev-client-unsigned`（`打包 iOS 未签名 IPA`）在 Apple M2 机器上执行：
-安装依赖 → 按锁文件哈希决定是否复用 `ios/` 缓存 → `expo prebuild --platform ios`
+安装依赖 → 按锁文件、应用配置和子包源码哈希决定是否复用 `ios/` 缓存 → `expo prebuild --platform ios`
 生成原生工程 → 关闭 Pods 签名并 `pod install` → `xcodebuild` 产出未签名 `.app`
 → 自行装入 `Payload/` 压成 IPA。产物为 `my-app-dev-client-unsigned.ipa`
 （另有 `*.app.dSYM`）。触发条件是推送到 `master` 或推送 `v*` 标签。
@@ -122,11 +122,8 @@ React Native/Expo 插件自身独立 included build 的仓库不在此配置范�
    添加完成后 Codemagic 直接读取根目录的 `codemagic.yaml`，无需在界面重复配置命令。
    首次构建可直接在 Codemagic 界面点 Start new build；未签名打包不需要任何额外凭据。
 
-注意：`packages/react-native-nitro-list`、`react-native-nitro-picker`、
-`react-native-nitro-viewability` 的 iOS 原生迁移已完成源码层面工作（`ios: null` 已移除，
-`*.podspec` 与 `nitrogen/generated/ios` 已提交），但尚未经过原生编译与设备验收。
-`react-native-nitro-list` 的 UICollectionView/Fabric 组件实现属于后续阶段；
-在该阶段完成前，IPA 可编译但列表的原生滚动功能在 iOS 上不可用。
+三个 Nitro 子包的 iOS 接入需要原生编译及设备验收；静态检查不能证明 IPA 可编译，
+也不能证明列表回收、手势、滚动精度或曝光生命周期已通过验收。
 
 ## Get a fresh project
 

@@ -1,18 +1,18 @@
 # react-native-nitro-list
 
-Android 原生列表原型：`RecyclerView` 负责滚动、布局和 cell 回收，Fabric 承载 React 内容，Nitro HybridObject 提供列表控制接口。支持纵向列表、动态高度瀑布流、同类型 React 子树复用、固定头部、分组及多层吸顶、刷新位置控制、滚动联动 Hook、触底加载、列表头尾、空状态与内容内边距。公开组件为 NativeList 和 NativeSectionList，包名及内部 Nitro/Fabric 注册名保持不变。
+Android 与 iOS 原生列表原型：Android 由 `RecyclerView`、iOS 由 `UICollectionView` 负责滚动、布局和 cell 回收；Fabric 承载 React 内容，Nitro HybridObject 提供列表控制接口。支持纵向列表、动态高度瀑布流、同类型 React 子树复用、固定头部、分组及多层吸顶、刷新位置控制、滚动联动 Hook、触底加载、列表头尾、空状态与内容内边距。公开组件为 NativeList 和 NativeSectionList，包名及内部 Nitro/Fabric 注册名保持不变。
 
 当前接入环境为 Expo 57、React Native 0.86.3、新架构、React 19.2.3 和 Reanimated 4.5.1。`react-native-nitro-modules` 与 Nitrogen 固定为 **0.37.1**。这些是原型的接入版本，不表示已完成兼容性认证。
 
-**本次实现未执行原生编译、自动测试或设备验收，不能据此认定挂载、手势、性能和滚动稳定性已经通过验证。** iOS 和 Web 暂未实现；横向列表、嵌套列表、跨层互斥及二楼交互不在本次范围内。
+**本次实现未执行原生编译、自动测试或设备验收，不能据此认定挂载、手势、性能和滚动稳定性已经通过验证。** Web 暂未实现；横向列表、嵌套列表、跨层互斥及二楼交互不在本次范围内。
 
 ## 接入
 
-根项目通过 workspace 依赖引用此包。使用方需要安装上述 peer dependencies，并使用包含此原生包的 **Android development build**；Expo Go 无法加载自定义原生代码。变更 Kotlin、C++ 或原生组件配置后需要重新生成开发构建，Metro 热更新不能替代该步骤。
+根项目通过 workspace 依赖引用此包。使用方需要安装上述 peer dependencies，并使用包含此原生包的 **Android 或 iOS development build**；Expo Go 无法加载自定义原生代码。变更 Kotlin、Swift、C++ 或原生组件配置后需要重新生成开发构建，Metro 热更新不能替代该步骤。
 
 Nitrogen 生成文件放在 `nitrogen/generated`。改动 `.nitro.ts` 接口后执行 `pnpm --filter react-native-nitro-list codegen:nitro`，不要手工修改生成文件。React Native Fabric 的 codegen 在原生工程接入流程中运行。
 
-槽位使用手写 Fabric ShadowNode，通过原生 State 同步 RecyclerView 中的实际位置，让 React `measure()` 和 `Pressable` 的点击范围与显示位置一致。相关 C++ 源码位于 `android/src/main/jni`；槽位的 `interfaceOnly` 配置保留 codegen 生成的属性与平台接口，ShadowNode 和组件描述符由包提供，不修改生成代码。
+槽位使用手写 Fabric ShadowNode，通过原生 State 同步回收容器中的实际位置，让 React `measure()` 和 `Pressable` 的点击范围与显示位置一致。Android 相关 C++ 源码位于 `android/src/main/jni`，iOS 组件与槽位描述符位于 `ios/`；槽位的 `interfaceOnly` 配置保留 codegen 生成的属性与平台接口，ShadowNode 和组件描述符由包提供，不修改生成代码。
 
 在当前 workspace 中修改子包的 `react-native.config.js` 后，Gradle 默认的自动链接缓存不会因该文件变化而失效。若编译提示找不到 `NitroListSlotViewComponentDescriptor`，检查 `android/build/generated/autolinking/autolinking.json` 中本包的 `cmakeListsPath`，应指向 `android/src/main/jni/CMakeLists.txt`。若仍指向 `android/build/generated/source/codegen/jni/CMakeLists.txt`，删除这份缓存 JSON，再重新构建开发版，由 Gradle 重新生成自动链接配置；不要手工修改生成的头文件或 `autolinking.cpp`。
 
@@ -22,7 +22,9 @@ Nitrogen 生成文件放在 `nitrogen/generated`。改动 `.nitro.ts` 接口后�
 pnpm exec expo run:android
 ```
 
-包通过 React Native autolinking 接入 Android。不要直接复制 cell View 到其他原生父节点，也不要在 Expo Go 中尝试挂载组件。根应用对不支持的平台和 Expo Go 显示说明页。
+包通过 React Native autolinking 接入 Android 与 iOS。不要直接复制 cell View 到其他原生父节点，也不要在 Expo Go 中尝试挂载组件。根应用对不支持的平台和 Expo Go 显示说明页。
+
+iOS 使用 `UICollectionView` 回收 cell，以 Fabric 槽位挂载 React 内容；Nitro 控制器连接列表、接受测量并执行滚动命令。iOS 源码和 Nitrogen 绑定已加入包，但当前 Windows 环境未运行 iOS 原生编译、模拟器或真机验收。尤其需要在 iOS development build 核对槽位测量与点击范围、1,000/10,000 条滚动时的槽位数、瀑布流重排、吸顶层级、刷新、定位修正及曝光事件。
 
 ## 基本用法
 
@@ -384,15 +386,15 @@ const viewabilityConfig = { itemVisiblePercentThreshold: 50, minimumViewTime: 30
 
 ### 普通组件曝光
 
-独立的 workspace 包 `react-native-nitro-viewability` 提供 `ExposureObserver` 包装组件和 `useExposureObserver` 无包装 Hook，可观察按钮、广告卡片等普通组件；两个入口共用 Nitro 原生观察控制器。NativeList 的 Android 可见性适配器复用它的 Kotlin tracker 核心，列表公开 API、业务索引、槽位版本过滤及垂直高度比例语义保持不变。独立观察使用**可见面积比例**，不要将两个接口的百分比含义混用。列表数据项优先使用 `onViewableItemsChanged`，无需为每个 cell 添加包装器。
+独立的 workspace 包 `react-native-nitro-viewability` 提供 `ExposureObserver` 包装组件和 `useExposureObserver` 无包装 Hook，可观察按钮、广告卡片等普通组件；两个入口共用 Nitro 原生观察控制器。NativeList 在 Android 复用 Kotlin tracker，在 iOS 复用对应的原生停留计时核心；列表公开 API、业务索引、槽位版本过滤及垂直高度比例语义保持不变。独立观察使用**可见面积比例**，不要将两个接口的百分比含义混用。列表数据项优先使用 `onViewableItemsChanged`，无需为每个 cell 添加包装器。
 
 演示在列表头部使用包装广告卡片和 Hook 观察现有展开按钮，设置稳定 key、`50%` 面积和 `300 ms` 连续停留时间，并用路由焦点与工具栏暂停开关共同控制 `active`。Hook ref 必须连接实际原生 View，且目标需要 `collapsable={false}`。独立面板分别显示曝光次数，回调不会让列表父组件反复重渲染。滚出再进入且满足停留时间会再次计数，不做全局一次性去重。两个入口没有 JS 逐帧轮询，不承诺识别同级浮层遮挡或复杂变换；详细用法和限制见 [独立包 README](../react-native-nitro-viewability/README.md)。
 
-该共享原生依赖需要随 Android 应用重新构建，Expo Go 不能加载；本次未执行构建或设备验收。
+该共享原生依赖需要随 Android 或 iOS 应用重新构建，Expo Go 不能加载；本次未执行构建或设备验收。
 
 ## 复用与状态约定
 
-- **双层复用**：RecyclerView 复用原生 holder，React 按稳定槽位身份保留同类型组件。新项目绑定到旧槽位时更新 props，不以项目 key 强制卸载重建整个 React 子树。
+- **双层复用**：Android 的 RecyclerView 和 iOS 的 UICollectionView 复用原生 cell，React 按稳定槽位身份保留同类型组件。新项目绑定到旧槽位时更新 props，不以项目 key 强制卸载重建整个 React 子树。
 - **不要给 `renderItem` 返回的根组件添加 `key={item.id}`**：这会让 React 重建子树，失去该层复用收益。项目内部普通数组仍然需要正常的 React key。
 - `useRecyclingState(initialValue)` 只在 `renderItem` 返回的子组件中使用，它从槽位上下文读取当前 item key，换绑后重置。普通 `useState`、`useRef` 和第三方组件内部状态不会自动重置。该 Hook 返回的 setter 用于当前绑定，不要把旧 setter 长期保存在外部。
 - 需要离屏保留的收藏、编辑草稿或选中状态应在列表外按 item key 保存，以 `extraData` 和 props 传入。示例中的展开是临时状态，收藏是外部状态。

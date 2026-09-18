@@ -4,6 +4,7 @@
   "android": { "androidNamespace": ["picker"], "androidCxxLibName": "NitroPicker" },
   "autolinking": {
     "PickerController": {
+      "ios": { "language": "swift", "implementationClassName": "HybridPickerController" },
       "android": { "language": "kotlin", "implementationClassName": "HybridPickerControllerRegistration" }
     }
   },

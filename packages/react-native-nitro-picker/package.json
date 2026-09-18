@@ -1,11 +1,11 @@
 {
   "name": "react-native-nitro-picker",
   "version": "0.1.0",
-  "description": "Android wheel picker with Fabric React content and native Nitro scrolling",
+  "description": "Android and iOS wheel picker with Fabric React content and native Nitro scrolling",
   "main": "src/index.ts",
   "react-native": "src/index.ts",
   "types": "src/index.ts",
-  "files": ["src", "android", "nitrogen", "nitro.json", "react-native.config.js", "README.md"],
+  "files": ["src", "android", "ios", "nitrogen", "nitro.json", "react-native.config.js", "NitroPicker.podspec", "README.md"],
   "scripts": { "codegen:nitro": "nitrogen" },
   "peerDependencies": {
     "react": ">=19.2.0",

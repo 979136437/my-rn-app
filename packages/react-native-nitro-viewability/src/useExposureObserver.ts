@@ -11,7 +11,7 @@ export function useExposureObserver({
   exposureKey, visiblePercentThreshold = 50, minimumViewTime = 0,
   enabled = true, active = true, onExposure, onVisibilityChange,
 }: ExposureObserverOptions): (view: View | null) => void {
-  if (Platform.OS !== 'android') throw new Error(`react-native-nitro-viewability supports Android only (received ${Platform.OS}).`);
+  if (Platform.OS !== 'android' && Platform.OS !== 'ios') throw new Error(`react-native-nitro-viewability supports Android and iOS only (received ${Platform.OS}).`);
   if (typeof exposureKey !== 'string' || exposureKey.length === 0) throw new Error('ExposureObserver exposureKey must be a nonempty string.');
   if (!Number.isFinite(visiblePercentThreshold) || visiblePercentThreshold < 0 || visiblePercentThreshold > 100) {
     throw new Error('ExposureObserver visiblePercentThreshold must be between 0 and 100.');

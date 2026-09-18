@@ -253,7 +253,7 @@ function ScenarioScreen({ scenario }: { scenario: Scenario }) {
 
 export default function ListTestPage({ scenario, title }: { scenario: Scenario; title: string }) {
   const insets = useSafeAreaInsets();
-  const available = Platform.OS === 'android' && Constants.executionEnvironment !== ExecutionEnvironment.StoreClient;
+  const available = (Platform.OS === 'android' || Platform.OS === 'ios') && Constants.executionEnvironment !== ExecutionEnvironment.StoreClient;
   return <View style={[styles.screen, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
     <Stack.Screen options={{ headerShown: false }} />
     <View style={styles.heading}>
@@ -261,7 +261,7 @@ export default function ListTestPage({ scenario, title }: { scenario: Scenario; 
       <Text style={styles.title}>{title}</Text>
     </View>
     {available ? <ScenarioScreen scenario={scenario} /> : <View style={styles.unavailable}>
-      <Text style={styles.title}>需要 Android 开发构建</Text><Text style={styles.copy}>此页面使用自定义原生模块。Expo Go、iOS 和 Web 不挂载原生列表；请在包含 NativeList 的 Android 开发构建中打开。</Text>
+      <Text style={styles.title}>需要原生开发构建</Text><Text style={styles.copy}>此页面使用自定义原生模块。请在包含 NativeList 的 Android 或 iOS development build 中打开；Expo Go 和 Web 不挂载原生列表。</Text>
     </View>}
   </View>;
 }

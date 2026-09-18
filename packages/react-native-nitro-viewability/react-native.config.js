@@ -6,7 +6,7 @@ module.exports = {
         packageImportPath: 'import com.viewability.NitroViewabilityPackage;',
         packageInstance: 'new NitroViewabilityPackage()',
       },
-      ios: null,
+      ios: {},
     },
   },
 };

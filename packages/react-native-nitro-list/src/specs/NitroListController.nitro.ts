@@ -79,7 +79,7 @@ export interface ListSnapshot {
   rebinds: number;
 }
 
-export interface NitroListController extends HybridObject<{ android: 'kotlin' }> {
+export interface NitroListController extends HybridObject<{ android: 'kotlin'; ios: 'swift' }> {
   connect(listId: string, onSnapshot: (snapshot: ListSnapshot) => void): void;
   configure(config: ListConfig): void;
   setItems(items: ListItem[]): void;
@@ -94,7 +94,7 @@ export interface NitroListController extends HybridObject<{ android: 'kotlin' }>
   scrollToItem(key: string, animated: boolean, align: string, offset: number, avoidHeaders: boolean): void;
   /** Stop native scrolling and cancel pending item alignment. */
   stopScroll(): void;
-  /** Capture metrics on the Android UI thread. */
+  /** Capture metrics on the native UI thread. */
   getScrollMetrics(): Promise<ScrollMetrics>;
   disconnect(): void;
 }

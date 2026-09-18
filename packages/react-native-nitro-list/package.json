@@ -1,11 +1,11 @@
 {
   "name": "react-native-nitro-list",
   "version": "0.1.0",
-  "description": "Android Fabric recycler list with Nitro control and reusable React slots",
+  "description": "Fabric recycler list with Nitro control and reusable React slots",
   "main": "src/index.ts",
   "react-native": "src/index.ts",
   "types": "src/index.ts",
-  "files": ["src", "android", "nitrogen", "nitro.json", "react-native.config.js", "README.md"],
+  "files": ["src", "android", "ios", "nitrogen", "NitroList.podspec", "nitro.json", "react-native.config.js", "README.md"],
   "scripts": { "codegen:nitro": "nitrogen" },
   "dependencies": { "react-native-nitro-viewability": "workspace:*" },
   "peerDependencies": {
@@ -19,6 +19,12 @@
     "name": "NitroListSpec",
     "type": "components",
     "jsSrcsDir": "src/specs",
-    "android": { "javaPackageName": "com.nitrolist" }
+    "android": { "javaPackageName": "com.nitrolist" },
+    "ios": {
+      "componentProvider": {
+        "NitroListView": "NitroListComponentView",
+        "NitroListSlotView": "NitroListSlotComponentView"
+      }
+    }
   }
 }

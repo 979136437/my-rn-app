@@ -1,8 +1,8 @@
 # react-native-nitro-viewability
 
-独立的 Android 组件曝光观察包。`ExposureObserver` 包装组件和 `useExposureObserver` 无包装 Hook 共用 Nitro HybridObject 观察控制器，由原生观察布局、滚动和宿主生命周期，计算可见面积并执行连续停留计时；JS 只接收状态变化，不进行逐帧测量轮询。不要求内容位于 NitroList 中。Nitro Modules 与 Nitrogen 使用项目的 **0.37.1**。
+独立的 Android / iOS 组件曝光观察包。`ExposureObserver` 包装组件和 `useExposureObserver` 无包装 Hook 共用 Nitro HybridObject 观察控制器，由原生观察布局、滚动和宿主生命周期，计算可见面积并执行连续停留计时；JS 只接收状态变化，不进行逐帧测量轮询。不要求内容位于 NitroList 中。Nitro Modules 与 Nitrogen 使用项目的 **0.37.1**。
 
-当前是 workspace 内的实现，尚未执行 Android 构建、自动测试或设备验收，不表示已经发布到 npm 或通过平台兼容认证。仅支持 Android；需要包含本包的 development build，Expo Go 不支持。新增原生包或修改原生实现后必须重新构建 Android 应用，Metro 热更新不能完成原生接入；本次未执行该构建。
+当前是 workspace 内的实现，尚未执行 iOS / Android 构建、自动测试或设备验收，不表示已经发布到 npm 或通过平台兼容认证。支持 Android 与 iOS；需要包含本包的 development build，Expo Go 不支持。新增原生包或修改原生实现后必须重新构建应用，Metro 热更新不能完成原生接入；本次未执行构建。
 
 ## 使用
 
@@ -97,13 +97,13 @@ export function PauseWhenHidden({ videoId, screenFocused, overlayVisible, player
 | 滚出可视范围或被祖先裁剪至低于阈值 | 原生通知 `isViewable=false` |
 | 跳转页面但视频页保留挂载 | 调用方把路由焦点传给 `active` |
 | App 进入后台、宿主暂停 | 原生通知不可见并清空计时 |
-| 下拉通知栏、系统窗口等导致当前窗口失焦 | 窗口焦点监听通知不可见，不依赖 Activity 暂停 |
+| 下拉通知栏、系统窗口等导致当前窗口失焦 | Android 监听窗口焦点；iOS 监听应用与 WindowScene 激活状态及 key window |
 | 观察器首次挂载时窗口已经失焦 | 保持不可见，获焦后重新判断 |
 | 窗口重新获焦 | 还需宿主已恢复、`active/enabled` 为 true、面积达标；从零重新计时 |
 | 页面内的业务遮罩没有引起窗口失焦 | 调用方设置 `active={false}` |
 | 卸载视频组件 | 调用方清理播放器或主动暂停，不依赖退出回调 |
 
-这里的“焦点”是 Android 窗口焦点，不是输入框或某个 View 的输入焦点。通知栏覆盖检测依赖系统发出的窗口失焦或宿主暂停事件，不做通知栏像素检测；厂商系统若覆盖窗口却没有触发这两类事件，无法仅凭该观察器识别。回调通过 JS 异步交付，JS 阻塞时播放器暂停也可能延后；本包没有直接控制原生播放器。
+这里的“焦点”在 Android 指窗口焦点，在 iOS 指应用及 WindowScene 激活状态，不是输入框或某个 View 的输入焦点。不做覆盖物像素检测；系统若覆盖窗口却没有改变这些状态，无法仅凭该观察器识别。回调通过 JS 异步交付，JS 阻塞时播放器暂停也可能延后；本包没有直接控制原生播放器。
 
 ## API
 
@@ -138,9 +138,9 @@ type ExposureInfo = {
 
 原生检测窗口边界、祖先裁剪、平移、缩放、隐藏状态、零透明度、脱离窗口以及宿主暂停，避免仅凭组件已经挂载就判断曝光。旋转和倾斜按包围矩形近似，不分析圆角、任意形状、同级浮层、弹窗或其他覆盖物的真实像素遮挡。页面被业务浮层覆盖时可额外设置 `active={false}`。Android 布局和裁剪结果不等同于用户实际注视或看见内容。
 
-React Native 祖先 View 的 `overflow: hidden` / `scroll` 会按边框内侧矩形参与裁剪，包含逻辑边框与 RTL 方向的处理，不依赖 RN 的可选裁剪同步开关。这里不会把内容 padding 当作边框裁掉；圆角仍按矩形近似。
+Android 上 React Native 祖先 View 的 `overflow: hidden` / `scroll` 会按边框内侧矩形参与裁剪，包含逻辑边框与 RTL 方向的处理。iOS 上使用 UIView 的 `clipsToBounds` / `masksToBounds` 和窗口边界裁剪。两端均不按真实圆角形状计算。
 
-本包内部的 Kotlin tracker 负责稳定身份、可见条件、连续计时和变化集合；具体宿主提供几何信息与生命周期。`ExposureObserver` 使用面积比例，NitroList 的原生适配器复用该核心但仍使用项目垂直可见高度比例，保留原有 `viewabilityConfig` 和 `onViewableItemsChanged` API。这是内部原生复用接口，不是需要业务直接调用的 JS tracker API。
+本包内部的 Android Kotlin tracker 与 iOS Swift tracker 分别负责可见条件和连续计时；具体宿主提供几何信息与生命周期。`ExposureObserver` 使用面积比例；NitroList 的原生适配器可复用对应平台的判定核心，仍应使用列表项目垂直可见高度比例。这是内部原生接口，不是需要业务直接调用的 JS API。
 
 普通按钮、广告卡片等独立组件可以选择包装器或 Hook。NitroList 数据项应优先使用列表自带的可见项目回调，它了解槽位复用、业务索引、测量版本与隐藏内容；不建议为每个列表 cell 额外套一层 observer。演示使用包装广告卡片和 Hook 观察头部展开按钮，在独立状态面板分别记录曝光次数，避免曝光回调触发列表父组件反复重新渲染。工具栏可暂停 / 恢复普通组件曝光，并与路由焦点共同控制 `active`。滚出头部后回顶部，停留达到阈值会再次计数；NitroList 的可见项回调仍独立展示。
 
@@ -157,4 +157,4 @@ React Native 祖先 View 的 `overflow: hidden` / `scroll` 会按边框内侧矩
 - 普通内容尺寸变化、点击交互和列表头部滚出再进入，检查正常布局、触摸范围及曝光计数；列表项目回调仍保持原有高度比例语义。
 - Hook 和包装器结果一致；横纵滚动与嵌套裁剪、目标 ref 替换、同 key 多实例、卸载及重新挂载均需要设备验收。
 
-以上需在重新构建后的 Android 开发应用中验收，本次未运行。未经授权不运行项目构建，不额外引入测试框架。
+以上需在重新构建后的 Android 与 iOS 开发应用中分别验收，本次未运行。未经授权不运行项目构建，不额外引入测试框架。

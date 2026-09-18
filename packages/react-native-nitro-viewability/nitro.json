@@ -4,7 +4,8 @@
   "android": { "androidNamespace": ["viewability"], "androidCxxLibName": "NitroViewability" },
   "autolinking": {
     "ExposureController": {
-      "android": { "language": "kotlin", "implementationClassName": "HybridExposureControllerRegistration" }
+      "android": { "language": "kotlin", "implementationClassName": "HybridExposureControllerRegistration" },
+      "ios": { "language": "swift", "implementationClassName": "HybridExposureController" }
     }
   },
   "ignorePaths": ["node_modules"]

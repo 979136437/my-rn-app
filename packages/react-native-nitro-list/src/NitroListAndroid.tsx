@@ -3,7 +3,7 @@ import {
   useLayoutEffect, useMemo, useRef, useState,
 } from 'react';
 import type { ForwardedRef, RefObject } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import type { LayoutChangeEvent, NativeSyntheticEvent } from 'react-native';
 import { NitroModules } from 'react-native-nitro-modules';
 import Animated, { useEvent, useSharedValue } from 'react-native-reanimated';
@@ -346,7 +346,7 @@ function NitroListAndroid<T>({
       controller.current = instance;
       instance.connect(listId, (snapshot) => { if (live) acceptSnapshot(snapshot); });
     } catch (cause) {
-      setError(new Error('NitroList native initialization failed. Install an Android development build with react-native-nitro-list and Nitro 0.37.1.', { cause }));
+      setError(new Error(`NitroList native initialization failed. Install a ${Platform.OS} development build with react-native-nitro-list and Nitro 0.37.1.`, { cause }));
     }
     return () => {
       live = false;
