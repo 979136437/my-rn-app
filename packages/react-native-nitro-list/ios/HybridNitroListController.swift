@@ -101,18 +101,18 @@ final class HybridNitroListController: HybridNitroListControllerSpec {
 
   func scrollToOffset(offset: Double, animated: Bool) throws {
     guard offset.isFinite else { throw NSError(domain: "NitroList", code: 3) }
-    onMain { [weak self] in self?.connection?.list?.scrollToOffset(offset, animated: animated) }
+    onMain { [weak self] in self?.connection?.list?.scroll(toOffset: offset, animated: animated) }
   }
 
-  func scrollToEnd(animated: Bool) throws { onMain { [weak self] in self?.connection?.list?.scrollToEnd(animated) } }
+  func scrollToEnd(animated: Bool) throws { onMain { [weak self] in self?.connection?.list?.scroll(toEnd: animated) } }
   func scrollBy(deltaY: Double, animated: Bool) throws {
     guard deltaY.isFinite else { throw NSError(domain: "NitroList", code: 3) }
-    onMain { [weak self] in self?.connection?.list?.scrollBy(deltaY, animated: animated) }
+    onMain { [weak self] in self?.connection?.list?.scroll(by: deltaY, animated: animated) }
   }
 
   func scrollToItem(key: String, animated: Bool, align: String, offset: Double, avoidHeaders: Bool) throws {
     guard offset.isFinite, ["start", "center", "end"].contains(align) else { throw NSError(domain: "NitroList", code: 3) }
-    onMain { [weak self] in self?.connection?.list?.scrollToItem(key, animated: animated, align: align, offset: offset, avoidHeaders: avoidHeaders) }
+    onMain { [weak self] in self?.connection?.list?.scroll(toItem: key, animated: animated, align: align, offset: offset, avoidHeaders: avoidHeaders) }
   }
 
   func stopScroll() throws { onMain { [weak self] in self?.connection?.list?.stopScroll() } }

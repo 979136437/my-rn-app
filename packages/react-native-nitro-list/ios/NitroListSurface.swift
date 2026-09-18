@@ -419,14 +419,14 @@ final class NitroListSurface: UIView, NitroListNativeView, UICollectionViewDataS
   }
 
   private var maxOffset: CGFloat { max(0, collection.contentSize.height - collection.bounds.height) }
-  @objc func scrollToOffset(_ offset: Double, animated: Bool) {
+  @objc(scrollToOffset:animated:) func scroll(toOffset offset: Double, animated: Bool) {
     let target = min(max(0, CGFloat(offset)), maxOffset)
     if animated && abs(target - collection.contentOffset.y) > 0.5 { setScrollState("settling") }
     collection.setContentOffset(CGPoint(x: 0, y: target), animated: animated)
   }
-  @objc func scrollToEnd(_ animated: Bool) { scrollToOffset(Double(maxOffset), animated: animated) }
-  @objc func scrollBy(_ delta: Double, animated: Bool) { scrollToOffset(Double(collection.contentOffset.y) + delta, animated: animated) }
-  @objc func scrollToItem(_ key: String, animated: Bool, align: String, offset: Double, avoidHeaders: Bool) {
+  @objc(scrollToEnd:) func scroll(toEnd animated: Bool) { scroll(toOffset: Double(maxOffset), animated: animated) }
+  @objc(scrollBy:animated:) func scroll(by delta: Double, animated: Bool) { scroll(toOffset: Double(collection.contentOffset.y) + delta, animated: animated) }
+  @objc(scrollToItem:animated:align:offset:avoidHeaders:) func scroll(toItem key: String, animated: Bool, align: String, offset: Double, avoidHeaders: Bool) {
     collection.layoutIfNeeded()
     guard let index = entries.firstIndex(where: { ($0["key"] as? String) == key }), geometry.frames.indices.contains(index) else {
       event("onScrollToItemFailed", ["key": key, "reason": "invalid-target"])
@@ -437,7 +437,7 @@ final class NitroListSurface: UIView, NitroListNativeView, UICollectionViewDataS
     let free = max(0, collection.bounds.height - frame.height)
     let adjustment: CGFloat = align == "center" ? free / 2 : align == "end" ? free : 0
     let header = avoidHeaders ? CGFloat(d("fixedHeaderHeight")) : 0
-    scrollToOffset(Double(frame.minY - adjustment - header + CGFloat(offset)), animated: animated)
+    scroll(toOffset: Double(frame.minY - adjustment - header + CGFloat(offset)), animated: animated)
   }
   private func correctSeek() {
     guard let seek = pendingSeek else { return }
