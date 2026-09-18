@@ -50,8 +50,8 @@ workflows:
       - name: 生成 iOS 原生工程（按锁文件哈希复用缓存）
         script: |
           set -e
-          # app.json 决定原生工程配置，与锁文件一起参与哈希，避免复用过期工程
-          LOCK_HASH=$(cat pnpm-lock.yaml app.json | shasum | awk '{print $1}')
+          # 子包的 podspec、原生实现与生成绑定变化也必须使缓存失效。
+          LOCK_HASH=$( { cat pnpm-lock.yaml app.json; git ls-files -z packages | xargs -0 shasum; } | shasum | awk '{print $1}')
           CACHE_FLAG_FILE=build/dependency_hash.txt
           mkdir -p build
           if [ -f ios/Podfile ] && [ -f "$CACHE_FLAG_FILE" ] && [ "$(cat "$CACHE_FLAG_FILE")" = "$LOCK_HASH" ]; then
