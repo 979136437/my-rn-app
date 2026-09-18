@@ -1,8 +1,39 @@
 import Foundation
 import UIKit
 
+private final class PickerScrollDelegate: NSObject, UIScrollViewDelegate {
+  weak var owner: HybridPickerController?
+
+  init(owner: HybridPickerController) {
+    self.owner = owner
+    super.init()
+  }
+
+  func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+    owner?.scrollViewWillBeginDragging(scrollView)
+  }
+
+  func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint,
+                                 targetContentOffset: UnsafeMutablePointer<CGPoint>) {
+    owner?.scrollViewWillEndDragging(scrollView, withVelocity: velocity, targetContentOffset: targetContentOffset)
+  }
+
+  func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+    owner?.scrollViewDidEndDragging(scrollView, willDecelerate: decelerate)
+  }
+
+  func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+    owner?.scrollViewDidEndDecelerating(scrollView)
+  }
+
+  func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+    owner?.scrollViewDidEndScrollingAnimation(scrollView)
+  }
+}
+
 /// React owns the option views; UIKit owns the scroll gesture and deceleration.
-final class HybridPickerController: HybridPickerControllerSpec, UIScrollViewDelegate {
+final class HybridPickerController: HybridPickerControllerSpec {
+  private lazy var scrollDelegate = PickerScrollDelegate(owner: self)
   private weak var scrollView: UIScrollView?
   private var config: PickerConfig?
   private var callback: ((PickerEvent) -> Void)?
@@ -110,7 +141,7 @@ final class HybridPickerController: HybridPickerControllerSpec, UIScrollViewDele
       scroll.isScrollEnabled = true
       scroll.bounces = false
       scroll.showsVerticalScrollIndicator = false
-      NitroPickerScrollBridge.add(self, to: scroll)
+      NitroPickerScrollBridge.add(scrollDelegate, to: scroll)
       observedContentSize = scroll.observe(\.contentSize, options: [.new]) { [weak self] _, _ in
         self?.onMain { [weak self] in self?.positionIfReady() }
       }
@@ -215,19 +246,19 @@ final class HybridPickerController: HybridPickerControllerSpec, UIScrollViewDele
     if let observer = foregroundObserver { NotificationCenter.default.removeObserver(observer) }
     backgroundObserver = nil
     foregroundObserver = nil
-    if let scroll = scrollView { NitroPickerScrollBridge.remove(self, from: scroll) }
+    if let scroll = scrollView { NitroPickerScrollBridge.remove(scrollDelegate, from: scroll) }
     scrollView = nil
     config = nil
     callback = nil
     pendingPosition = false
   }
 
-  func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+  fileprivate func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
     endCycle()
     beginCycle()
   }
 
-  func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint,
+  fileprivate func scrollViewWillEndDragging(_ scrollView: UIScrollView, withVelocity velocity: CGPoint,
                                  targetContentOffset: UnsafeMutablePointer<CGPoint>) {
     guard active, count > 0 else { return }
     let target = nearest(targetContentOffset.pointee.y)
@@ -235,12 +266,12 @@ final class HybridPickerController: HybridPickerControllerSpec, UIScrollViewDele
     if config?.immediateChange == true { report(target) }
   }
 
-  func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+  fileprivate func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
     if !decelerate { settle() }
   }
 
-  func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) { settle() }
-  func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+  fileprivate func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) { settle() }
+  fileprivate func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
     guard active else { return }
     report(nearest(scrollView.contentOffset.y))
     endCycle()
