@@ -15,6 +15,9 @@ Pod::Spec.new do |s|
   s.public_header_files = 'ios/NitroListBridge.h'
   s.requires_arc = true
   s.swift_version = '5.9'
+  s.pod_target_xcconfig = {
+    'HEADER_SEARCH_PATHS' => '$(inherited) "$(PODS_ROOT)/Headers/Private/Yoga"'
+  }
   s.dependency 'React-Core'
   s.dependency 'React-Fabric'
   s.dependency 'React-RCTFabric'

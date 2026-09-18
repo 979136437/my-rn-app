@@ -14,6 +14,9 @@ Pod::Spec.new do |spec|
   spec.swift_version = '5.9'
   spec.source_files = 'ios/**/*.{h,m,mm,swift}'
   spec.public_header_files = 'ios/NitroPickerScrollBridge.h'
+  spec.pod_target_xcconfig = {
+    'HEADER_SEARCH_PATHS' => '$(inherited) "$(PODS_ROOT)/Headers/Private/Yoga"'
+  }
   spec.dependency 'React-RCTFabric'
   load 'nitrogen/generated/ios/NitroPicker+autolinking.rb'
   add_nitrogen_files(spec)
