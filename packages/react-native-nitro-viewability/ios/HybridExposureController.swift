@@ -7,7 +7,7 @@ private final class ExposureFrameTarget: NSObject {
   @objc func tick() { onFrame?() }
 }
 
-final class HybridExposureController: HybridExposureControllerSpec_base, HybridExposureControllerSpec {
+final class HybridExposureController: HybridExposureControllerSpec {
   private let generationLock = NSLock()
   private var generation = 0
   // The remaining state is confined to the main queue.

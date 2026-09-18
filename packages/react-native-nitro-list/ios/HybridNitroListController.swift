@@ -26,7 +26,7 @@ private final class ListConnection: NSObject, NitroListNativeController, NitroLi
   }
 }
 
-final class HybridNitroListController: HybridNitroListControllerSpec_base, HybridNitroListControllerSpec {
+final class HybridNitroListController: HybridNitroListControllerSpec {
   private var listId: String?
   private var callback: ((ListSnapshot) -> Void)?
   private var config: [String: Any]?

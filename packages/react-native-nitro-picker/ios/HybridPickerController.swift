@@ -2,7 +2,7 @@ import Foundation
 import UIKit
 
 /// React owns the option views; UIKit owns the scroll gesture and deceleration.
-final class HybridPickerController: HybridPickerControllerSpec_base, HybridPickerControllerSpec, UIScrollViewDelegate {
+final class HybridPickerController: HybridPickerControllerSpec, UIScrollViewDelegate {
   private weak var scrollView: UIScrollView?
   private var config: PickerConfig?
   private var callback: ((PickerEvent) -> Void)?
