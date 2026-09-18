@@ -34,7 +34,10 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
-      ]
+      ],
+      "expo-video",
+      "expo-status-bar",
+      "react-native-permissions"
     ],
     "experiments": {
       "typedRoutes": true,
