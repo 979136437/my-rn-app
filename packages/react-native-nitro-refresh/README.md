@@ -12,6 +12,35 @@ iOS 使用 RN 自定义刷新视图协议，无需复制或替换 ScrollView。
 
 ## 使用
 
+iOS 静态库集成需要为 MJRefresh 开启 modular headers，使 NitroRefresh 的
+Swift 目标可以使用其模块映射。本应用使用 Expo 官方 `expo-build-properties`
+插件，在 `app.json` 的 `plugins` 中配置：
+
+```json
+[
+  "expo-build-properties",
+  {
+    "ios": {
+      "extraPods": [{ "name": "MJRefresh", "modular_headers": true }]
+    }
+  }
+]
+```
+
+版本继续由 NitroRefresh.podspec 的依赖声明约束，不全局开启 modular headers。
+该配置在 prebuild 时自动应用，现有 Codemagic 流程无需维护或复制 Podfile。
+仅影响 iOS，Android 继续通过子包的 Gradle 配置接入。本地 macOS 可执行：
+
+```sh
+npx expo install expo-build-properties
+npx expo prebuild --platform ios --no-install
+cd ios && pod install
+```
+
+非 Expo 宿主可在应用 target 的 Podfile 内手动添加
+`pod 'MJRefresh', :modular_headers => true`。
+Windows 无法验证 CocoaPods 安装及 iOS 编译结果。
+
 需要包含本原生包的开发构建，不支持 Expo Go。支持 RN 自带的纵向、非倒置
 ScrollView、FlatList、SectionList；不支持 Web、横向滚动或上拉加载。
 列表只设置 `refreshControl`，不要同时设置列表的 `onRefresh` / `refreshing`。

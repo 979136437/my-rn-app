@@ -88,7 +88,15 @@
           "granularPermissions": ["photo", "video", "audio"]
         }
       ],
-      "@maplibre/maplibre-react-native"
+      "@maplibre/maplibre-react-native",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "extraPods": [{ "name": "MJRefresh", "modular_headers": true }]
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
