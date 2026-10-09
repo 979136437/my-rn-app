@@ -1,0 +1,5 @@
+/generated/
+/android/build/
+/.cxx/
+/android/.cxx/
+/tests/__pycache__/

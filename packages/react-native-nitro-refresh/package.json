@@ -1,0 +1,43 @@
+{
+  "name": "react-native-nitro-refresh",
+  "version": "0.1.0",
+  "description": "Controlled native pull-to-refresh with SmartRefreshLayout, MJRefresh and Nitro",
+  "license": "Apache-2.0",
+  "private": true,
+  "main": "src/index",
+  "types": "src/index.ts",
+  "react-native": "src/index",
+  "dependencies": {
+    "cn": "catalog:"
+  },
+  "peerDependencies": {
+    "nativewind": "catalog:peer",
+    "react": "catalog:peer",
+    "react-native": "catalog:peer",
+    "react-native-nitro-modules": "catalog:peer",
+    "react-native-reanimated": "catalog:peer",
+    "react-native-worklets": "catalog:peer"
+  },
+  "devDependencies": {
+    "@react-native/codegen": "0.86.3",
+    "nitrogen": "0.37.1"
+  },
+  "scripts": {
+    "nitrogen": "nitrogen",
+    "codegen": "node scripts/codegen.cjs",
+    "test": "node --test --experimental-test-isolation=none tests/*.test.mjs"
+  },
+  "codegenConfig": {
+    "name": "NitroRefreshSpec",
+    "type": "components",
+    "jsSrcsDir": "src/specs",
+    "android": {
+      "javaPackageName": "com.margelo.nitro.refresh"
+    },
+    "ios": {
+      "componentProvider": {
+        "NitroRefreshView": "NitroRefreshView"
+      }
+    }
+  }
+}

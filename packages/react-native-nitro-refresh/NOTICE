@@ -1,0 +1,10 @@
+react-native-nitro-refresh
+
+This package references the Apache-2.0 implementations:
+react-native-SmartRefreshLayout, react-native-studio
+https://github.com/react-native-studio/react-native-SmartRefreshLayout
+react-native-MJRefresh, react-native-studio
+https://github.com/react-native-studio/react-native-MJRefresh
+
+The Android container gesture integration and Header state/progress hooks were adapted for the React Native new architecture.
+Native engine dependencies: SmartRefreshLayout (Apache-2.0), MJRefresh (MIT).
