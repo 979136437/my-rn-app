@@ -37,9 +37,9 @@ public final class RefreshRegistry: NSObject {
       controllers[id]?.value?.emitState(value)
     }
   }
-  @objc(emitPull:offset:height:isDragging:)
-  public static func emitPull(_ id: String, offset: Double, height: Double, isDragging: Bool) {
-    controllers[id]?.value?.emitPull(offset: offset, height: height, isDragging: isDragging)
+  @objc(emitPull:offset:height:triggerDistance:isDragging:)
+  public static func emitPull(_ id: String, offset: Double, height: Double, triggerDistance: Double, isDragging: Bool) {
+    controllers[id]?.value?.emitPull(offset: offset, height: height, triggerDistance: triggerDistance, isDragging: isDragging)
   }
 }
 
@@ -115,9 +115,9 @@ final class HybridRefreshController: HybridRefreshControllerSpec {
     if value == .idle && requestedRefreshing { target?.startRefresh(notify: false) }
   }
 
-  func emitPull(offset: Double, height: Double, isDragging: Bool) {
-    guard !invalidated, height > 0 else { return }
-    onPull?(RefreshPull(offset: offset, progress: offset / height, headerHeight: height, isDragging: isDragging))
+  func emitPull(offset: Double, height: Double, triggerDistance: Double, isDragging: Bool) {
+    guard !invalidated, height > 0, triggerDistance > 0 else { return }
+    onPull?(RefreshPull(offset: offset, progress: offset / triggerDistance, headerHeight: height, triggerDistance: triggerDistance, isDragging: isDragging))
   }
 
   func invalidate() {

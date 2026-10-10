@@ -7,12 +7,13 @@ export default function Startup() {
       <Text className="mb-6 text-xl font-semibold text-slate-900 dark:text-slate-100">
         Nitro 下拉刷新
       </Text>
-      <Link href="/(tabs)" asChild>
+      <Link href="/refresh-tests" asChild>
         <Pressable
+          testID="refresh-demo-entry"
           accessibilityRole="button"
           className="rounded-xl bg-indigo-600 px-6 py-3"
         >
-          <Text className="font-semibold text-white">进入刷新示例</Text>
+          <Text className="font-semibold text-white">查看全部测试场景</Text>
         </Pressable>
       </Link>
     </View>

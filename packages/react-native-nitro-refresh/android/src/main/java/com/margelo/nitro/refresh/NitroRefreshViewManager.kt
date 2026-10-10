@@ -26,6 +26,8 @@ internal class NitroRefreshViewManager : ViewGroupManager<NitroRefreshView>(), N
   override fun setControllerId(view: NitroRefreshView, value: String?) = view.setControllerId(value ?: "")
   @ReactProp(name = "enabled", defaultBoolean = true)
   override fun setEnabled(view: NitroRefreshView, value: Boolean) { view.refreshEnabled = value }
+  @ReactProp(name = "triggerDistance", defaultFloat = DEFAULT_HEADER_HEIGHT_DP)
+  override fun setTriggerDistance(view: NitroRefreshView, value: Float) { view.triggerDistance = value }
   @ReactProp(name = "headerHeight", defaultFloat = DEFAULT_HEADER_HEIGHT_DP)
   override fun setHeaderHeight(view: NitroRefreshView, value: Float) { view.headerHeight = value }
 }

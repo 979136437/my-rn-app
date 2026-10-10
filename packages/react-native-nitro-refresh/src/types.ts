@@ -15,6 +15,8 @@ export interface NitroRefreshControlProps {
   onRefresh: () => void;
   enabled?: boolean;
   headerHeight?: number;
+  /** Release threshold in dp; defaults to headerHeight. */
+  triggerDistance?: number;
   renderHeader?: (props: RefreshHeaderProps) => ReactNode;
   onStateChange?: (state: RefreshState) => void;
   onPull?: (pull: RefreshPull) => void;

@@ -7,8 +7,8 @@ Android 使用自定义 ViewGroup，iOS 使用 UIScrollView 与自定义 Header�
 Fabric 挂载视图，Nitro 控制刷新并传递业务回调；不使用旧 bridge 命令。
 iOS 使用 RN 自定义刷新视图协议，无需复制或替换 ScrollView。
 
-Android 在列表顶部接管向下拖动，使用 0.5 阻尼，最大显示距离为 Header
-高度的两倍；达到 Header 高度后松手触发刷新。iOS 使用 UIScrollView 自身
+Android 在列表顶部接管向下拖动，使用 0.5 阻尼，最大显示距离为
+max(headerHeight, triggerDistance) 的两倍；达到 triggerDistance 后松手触发刷新。iOS 使用 UIScrollView 自身
 的下拉弹性，按扣除组件增量后的安全区/inset 计算相同刷新阈值。
 原生容器展开与收起默认 300ms，尊重系统减少动态效果或禁用动画设置。
 取消手势不触发刷新；未达阈值收起不会启动列表滚动锁。
@@ -83,14 +83,17 @@ refreshRef.current?.beginRefresh();
 | `refreshing`          | 必填        | 受控刷新状态                                      |
 | `onRefresh`           | 必填        | 手势或主动刷新请求                                |
 | `enabled`             | `true`      | 启用用户请求                                      |
-| `headerHeight`        | `60`        | 高度和触发距离，dp，必须为正有限数                |
+| `headerHeight`        | `60`        | 刷新头高度和刷新停留距离，dp，必须为正有限数 |
+| `triggerDistance` | 当前 `headerHeight` | 松手刷新阈值，dp，必须为正有限数 |
 | `renderHeader`        | 默认 Header | `(props: RefreshHeaderProps) => ReactNode`        |
 | `onStateChange`       | —           | `idle / pulling / ready / refreshing / finishing` |
-| `onPull`              | —           | `{ offset, progress, headerHeight, isDragging }`  |
+| `onPull`              | —           | `{ offset, progress, headerHeight, triggerDistance, isDragging }`  |
 | `className` / `style` | —           | 原生外层样式；Android 滚动组件会注入布局 style    |
 
-`offset` 使用 dp；`progress` 为 offset / headerHeight，可超过 1。
-进度覆盖拖拽与回弹，`isDragging` 区分手指拖拽与程序/回弹移动。
+`offset` 使用 dp；`progress` 为 offset / triggerDistance，可超过 1。
+未传 `triggerDistance` 时跟随当前头高度；两者允许任意大小关系。
+拖动期间 progress 达到 1 对应 ready；刷新期间停留在 headerHeight，progress 不强制为 1，
+应使用 state 判断是否刷新。进度覆盖拖拽与回弹，`isDragging` 区分手指拖拽与程序/回弹移动。
 两端沿用各自原生库的阻尼和回弹。
 
 默认 Header 包含中文箭头、加载指示和深浅色样式。可导入 `DefaultRefreshHeader`，
@@ -124,34 +127,66 @@ cd android
 生成脚本仅产生绑定。`nitrogen/generated` 由 Nitrogen 维护；`generated` 为本地
 Fabric 检查产物，正式构建由 RN codegen 生成。不手工编辑生成文件。
 
-启动页“进入刷新示例”打开默认列表、短内容、自定义 Header 三个示例。
-默认列表和短内容使用包内默认头；自定义 Header 使用 `assets/animation/loading.json`
-的 Lottie 动画，下拉时跟随进度、刷新时循环，减少动态效果开启时显示静态帧。
-完成/失败按钮模拟本地刷新结果，无网络；示例保留使用方设置的随机自动完成延时。
-行内按钮显示点击次数；“滚到第5条”和“关闭/开启列表滚动”用于检查
-刷新期间的程序化滚动和使用方 `scrollEnabled` 更新。
+### 参数化示例（当前实现）
 
-Android 开发构建打开示例后，可以运行实际设备回归检查（需要 Python、ADB）：
+启动页进入 `/refresh-tests` 测试入口列表，按组展示 57 个场景的参数和操作说明，点击后传递参数到 `/refresh-demo`；旧 `/(tabs)` 入口继续转发参数。
+页面不提供刷新控制按钮；仅保留数据行点击，用于验证拖动取消点击。
+所有数据和结果都是本地模拟，不访问网络。Lottie 使用现有资源，尊重减少动态效果。
 
-```sh
-python packages/react-native-nitro-refresh/tests/android-scroll-lock.py --adb <adb路径> --serial <设备编号>
-```
+`myapp://refresh-demo?container=flat-list&header=lottie&headerHeight=60&triggerDistance=90`
 
-检查包含默认/自定义 Header 的双向滑动锁定、行内点击、程序化滚动、
-finishing 期间的拖动、解锁、调用方滚动开关更新，以及短 ScrollView。
+| 参数 | 默认值 | 可选值 / 含义 |
+| --- | --- | --- |
+| scenario | basic | 见下方命名场景 |
+| container | flat-list | scroll-view / flat-list / section-list |
+| content | long | long / short / empty |
+| header | default | default / lottie |
+| headerHeight | 60 | 正有限十进制数，dp |
+| triggerDistance | 跟随头高度 | 正有限十进制数，dp |
+| enabled | true | true / false |
+| scrollEnabled | true | true / false |
+| result | success | success / failure / reject |
+| refreshDurationMs | 1500 | 0–2147483647 ms，固定本地模拟耗时（避免 JS 定时器溢出） |
+| initialOffset | 0 | 内容布局后设置的初始滚动位置，dp，非负有限数 |
 
-原生验收场景：阈值前松手、达到阈值、进度超过 1、主动刷新、重复触发、初始 true、
-结束刷新、禁用、空/短列表、SectionList、多实例、刷新中切换示例/卸载、滚动事件和 ref 方法。
-Node 测试验证 JS 订阅生命周期、最新回调、进度传递、多实例隔离和卸载后排队事件，
-不替代设备手势验收。Windows 无法执行 iOS 编译，需在 macOS 开发构建中单独验证。
+优先级：公共默认值 → 场景预设 → 显式参数。重复、空值、未知或非法参数显示错误，
+不挂载原生组件。参数改变会重建实例并取消旧任务；场景内部属性更新保留实例。
+失败保留数据，拒绝保持 refreshing=false，均可再次下拉。
 
-`tests/native-acceptance-screen.tsx` 可临时挂到开发路由，检查初始受控刷新、
-空 SectionList、多实例、重复请求、拒绝请求、结束期间重新刷新和刷新中卸载。
-挂载此测试屏幕后，上述 ADB 脚本加 `--lifecycle` 可以执行这些检查。
-在全新测试屏幕上加 `--native-gestures` 可验证阈值前松手、行内触摸取消、
-ready/refreshing 状态序列、进度超过 1、拖拽标记及结束后的零偏移。
-默认示例脚本需要刷新保持至手动完成，运行时应临时移除示例自动完成延时，
-测试结束后恢复。原生验收屏不使用延时任务。
+命名场景：
+
+- basic：正常下拉与自动结束。
+- initial-refresh：初始受控刷新，onRefresh 请求数为 0。
+- begin-twice：挂载后连续 beginRefresh 两次，请求数为 1。
+- disable-refreshing：首次 refreshing 时禁用，当前任务正常完成。
+- reopen-finishing：首次 finishing 时再次受控刷新，版本最终为 2，请求数为 1。
+- update-height：首次 refreshing 时头高度翻倍，未指定阈值则同步跟随。
+- update-threshold：阈值预设 90，首次拖动时翻倍，立即更新进度和就绪状态。
+- unmount-refreshing：首次 refreshing 时卸载并取消任务。
+- two-instances：短内容预设；A 初始受控刷新并在 refreshing 时卸载，B 独立可刷新。
+
+### 测试
+
+逻辑测试使用现有 Node test runner，覆盖参数解析、模拟任务结果/重试/取消和 Session 生命周期。
+Node 需要支持 TypeScript stripping 与 registerHooks（本次使用 Node 24）。
+
+`python packages/react-native-nitro-refresh/tests/android-scroll-lock.py --adb <adb路径> --serial <设备编号>`
+
+脚本通过深链接切换场景，先预检客户端是否具有新原生绑定，再测试 18 种内容/容器/Header 组合、
+阈值大小关系、反向回拉、失败/拒绝后重试、点击取消、锁定/解锁和生命周期。
+用 `--suite preflight|matrix|gestures|lifecycle|parameters|disabled-requests` 单独运行。
+失败证据写入 `tests/artifacts/failure.json` 和 `failure-ui.xml`（不入 Git）。
+脚本只操作已安装客户端，不编译或安装应用；如原生绑定旧，需要另行授权编译及安装。
+设备必须已解锁并能连接正在运行的 Metro。脚本冷启动时会先连接开发服务器；
+可用 `--dev-server <URL>` 指定地址，默认 `http://127.0.0.1:8081`，本机地址自动设置 ADB reverse。
+脚本本身的离线验证：`python -m unittest discover -s packages/react-native-nitro-refresh/tests -p "test_*.py"`。
+
+`tests/native-acceptance-screen.tsx` 是复用相同页面的 props 测试宿主，默认验证双实例。
+手工 iOS、系统外观及辅助功能验收见 [验收清单](tests/ACCEPTANCE.md)。
+静态与逻辑测试不能替代两端原生手势验收。
+本次实际执行结果见 [验证记录](tests/VERIFICATION.md)。
+
+### 历史验证记录（不代表本次独立阈值实现通过原生测试）
 
 2026-10-10 原生容器替换验证：类型检查、源码 ESLint、4 项 JS 生命周期测试、
 Expo 配置检查与 Android Debug（arm64-v8a、x86_64）编译通过。

@@ -36,6 +36,7 @@ export const NitroRefreshControl = forwardRef<
     onRefresh,
     enabled = true,
     headerHeight = DEFAULT_HEADER_HEIGHT,
+    triggerDistance = headerHeight,
     renderHeader,
     onStateChange,
     onPull,
@@ -54,6 +55,12 @@ export const NitroRefreshControl = forwardRef<
   ) {
     throw new Error("headerHeight must be a positive finite number.");
   }
+  if (
+    !Number.isFinite(triggerDistance) ||
+    triggerDistance <= HEADER_HEIGHT_LOWER_BOUND
+  ) {
+    throw new Error("triggerDistance must be a positive finite number.");
+  }
   const session = useRef<ReturnType<typeof createRefreshSession> | null>(null);
   const [controllerId, setControllerId] = useState("");
   const [refreshRequests, setRefreshRequests] = useState(0);
@@ -62,6 +69,7 @@ export const NitroRefreshControl = forwardRef<
     offset: 0,
     progress: 0,
     headerHeight,
+    triggerDistance,
     isDragging: false,
   });
   const callbacks = {
@@ -120,6 +128,7 @@ export const NitroRefreshControl = forwardRef<
       controllerId={controllerId}
       enabled={enabled}
       headerHeight={headerHeight}
+      triggerDistance={triggerDistance}
       className={cn(
         Platform.OS === "android" ? "" : "absolute left-0 top-0 w-full",
         className,
@@ -133,9 +142,13 @@ export const NitroRefreshControl = forwardRef<
         style={{ height: headerHeight }}
       >
         {renderHeader ? (
-          renderHeader({ ...header, headerHeight })
+          renderHeader({ ...header, headerHeight, triggerDistance })
         ) : (
-          <DefaultRefreshHeader {...header} headerHeight={headerHeight} />
+          <DefaultRefreshHeader
+            {...header}
+            headerHeight={headerHeight}
+            triggerDistance={triggerDistance}
+          />
         )}
       </View>
       {Platform.OS === "android" ? children : null}

@@ -7,6 +7,7 @@ export interface RefreshPull {
   offset: number;
   progress: number;
   headerHeight: number;
+  triggerDistance: number;
   isDragging: boolean;
 }
 

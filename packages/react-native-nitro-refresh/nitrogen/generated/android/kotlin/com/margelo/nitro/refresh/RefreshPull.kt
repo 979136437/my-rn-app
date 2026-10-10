@@ -29,6 +29,9 @@ data class RefreshPull(
   val headerHeight: Double,
   @DoNotStrip
   @Keep
+  val triggerDistance: Double,
+  @DoNotStrip
+  @Keep
   val isDragging: Boolean
 ) {
   /* primary constructor */
@@ -39,6 +42,7 @@ data class RefreshPull(
     return Objects.deepEquals(this.offset, other.offset)
       && Objects.deepEquals(this.progress, other.progress)
       && Objects.deepEquals(this.headerHeight, other.headerHeight)
+      && Objects.deepEquals(this.triggerDistance, other.triggerDistance)
       && Objects.deepEquals(this.isDragging, other.isDragging)
   }
 
@@ -47,6 +51,7 @@ data class RefreshPull(
       offset,
       progress,
       headerHeight,
+      triggerDistance,
       isDragging
     ).contentDeepHashCode()
   }
@@ -59,8 +64,8 @@ data class RefreshPull(
     @Keep
     @Suppress("unused")
     @JvmStatic
-    private fun fromCpp(offset: Double, progress: Double, headerHeight: Double, isDragging: Boolean): RefreshPull {
-      return RefreshPull(offset, progress, headerHeight, isDragging)
+    private fun fromCpp(offset: Double, progress: Double, headerHeight: Double, triggerDistance: Double, isDragging: Boolean): RefreshPull {
+      return RefreshPull(offset, progress, headerHeight, triggerDistance, isDragging)
     }
   }
 }

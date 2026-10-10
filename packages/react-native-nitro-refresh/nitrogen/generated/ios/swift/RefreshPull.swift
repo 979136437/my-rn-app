@@ -18,8 +18,8 @@ public extension RefreshPull {
   /**
    * Create a new instance of `RefreshPull`.
    */
-  init(offset: Double, progress: Double, headerHeight: Double, isDragging: Bool) {
-    self.init(offset, progress, headerHeight, isDragging)
+  init(offset: Double, progress: Double, headerHeight: Double, triggerDistance: Double, isDragging: Bool) {
+    self.init(offset, progress, headerHeight, triggerDistance, isDragging)
   }
 
   @inline(__always)
@@ -35,6 +35,11 @@ public extension RefreshPull {
   @inline(__always)
   var headerHeight: Double {
     return self.__headerHeight
+  }
+  
+  @inline(__always)
+  var triggerDistance: Double {
+    return self.__triggerDistance
   }
   
   @inline(__always)

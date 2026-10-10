@@ -31,6 +31,8 @@ internal class NitroRefreshView(context: Context) : FrameLayout(context), Refres
   private var fingerDown = false
   private var dragging = false
   private var nativeGesture = false
+  private var forwardingScrollGesture = false
+  private var scrollGestureIntercepted = false
   private var pointerId = MotionEvent.INVALID_POINTER_ID
   private var anchorX = 0f
   private var anchorY = 0f
@@ -43,6 +45,23 @@ internal class NitroRefreshView(context: Context) : FrameLayout(context), Refres
   private val scroll: ScrollView? get() = reactChildren.getOrNull(1) as? ScrollView
   private val headerPx: Float get() = headerHeight * density
 
+  private val triggerPx: Float get() = triggerDistance * density
+  var triggerDistance = DEFAULT_HEADER_HEIGHT_DP
+    set(value) {
+      field = value
+      publishPull()
+      publishDragState()
+    }
+
+  private fun publishDragState() {
+    if (!dragging || active || finishing || !refreshEnabled) return
+    controller()?.emitState(when {
+      offsetPx >= triggerPx -> RefreshState.READY
+      offsetPx > 0f -> RefreshState.PULLING
+      else -> RefreshState.IDLE
+    })
+  }
+
   var refreshEnabled = true
     set(value) {
       field = value
@@ -53,7 +72,7 @@ internal class NitroRefreshView(context: Context) : FrameLayout(context), Refres
       field = value
       requestLayout()
       if (active && !finishing) animateOffset(headerPx) {}
-      else publishPull()
+      else { publishPull(); publishDragState() }
     }
 
   init { clipChildren = true }
@@ -70,7 +89,7 @@ internal class NitroRefreshView(context: Context) : FrameLayout(context), Refres
   private fun controller() = RefreshRegistry.find(controllerId)
 
   private fun publishPull() {
-    controller()?.emitPull((offsetPx / density).toDouble(), headerHeight.toDouble(), dragging && fingerDown && !scrollLocked)
+    controller()?.emitPull((offsetPx / density).toDouble(), headerHeight.toDouble(), triggerDistance.toDouble(), dragging && fingerDown && !scrollLocked)
   }
 
   private fun setOffset(value: Float) {
@@ -135,6 +154,8 @@ internal class NitroRefreshView(context: Context) : FrameLayout(context), Refres
         anchorY = event.y
         lastY = event.y
         dragging = false
+        forwardingScrollGesture = false
+        scrollGestureIntercepted = false
       }
       MotionEvent.ACTION_POINTER_UP -> {
         val leaving = event.actionIndex
@@ -169,6 +190,8 @@ internal class NitroRefreshView(context: Context) : FrameLayout(context), Refres
         nativeGesture = false
       }
       publishPull()
+      forwardingScrollGesture = false
+      scrollGestureIntercepted = false
     }
     return handled
   }
@@ -198,16 +221,35 @@ internal class NitroRefreshView(context: Context) : FrameLayout(context), Refres
   }
 
   override fun onTouchEvent(event: MotionEvent): Boolean {
+    if (forwardingScrollGesture) {
+      forwardScrollTouch(event)
+      return true
+    }
     if (!nativeGesture) return false
     val index = event.findPointerIndex(pointerId)
     if (event.actionMasked == MotionEvent.ACTION_MOVE && index >= 0 && dragging && !scrollLocked) {
       val raw = dragOriginOffset + (event.getY(index) - dragOriginY) * REFRESH_DRAG_DAMPING
-      setOffset(raw.coerceIn(0f, headerPx * REFRESH_MAX_DRAG_RATE))
-      controller()?.emitState(if (offsetPx >= headerPx) RefreshState.READY else RefreshState.PULLING)
+      setOffset(raw.coerceIn(0f, maxOf(headerPx, triggerPx) * REFRESH_MAX_DRAG_RATE))
+      publishDragState()
+      // The child received CANCEL when pulling began. Restart its native drag
+      // at the zero-offset crossing, then forward the rest of this gesture.
+      if (raw <= 0f && event.pointerCount == 1) {
+        dragging = false
+        publishPull()
+        NativeGestureUtil.notifyNativeGestureEnded(this, event)
+        nativeGesture = false
+        forwardingScrollGesture = true
+        val down = MotionEvent.obtain(event)
+        down.action = MotionEvent.ACTION_DOWN
+        down.setLocation(event.x, dragOriginY - dragOriginOffset / REFRESH_DRAG_DAMPING)
+        forwardScrollTouch(down)
+        down.recycle()
+        forwardScrollTouch(event)
+      }
     }
     if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
       val shouldRefresh = dragging && !scrollLocked && refreshEnabled &&
-        event.actionMasked == MotionEvent.ACTION_UP && offsetPx >= headerPx
+        event.actionMasked == MotionEvent.ACTION_UP && offsetPx >= triggerPx
       dragging = false
       fingerDown = false
       if (shouldRefresh) startRefresh(true)
@@ -215,6 +257,17 @@ internal class NitroRefreshView(context: Context) : FrameLayout(context), Refres
       else if (!active && !finishing) controller()?.emitState(RefreshState.IDLE)
     }
     return true
+  }
+
+  private fun forwardScrollTouch(event: MotionEvent) {
+    val content = scroll ?: return
+    val forwarded = MotionEvent.obtain(event)
+    forwarded.offsetLocation(-content.left.toFloat(), -content.top.toFloat())
+    if (scrollLocked) forwarded.action = MotionEvent.ACTION_CANCEL
+    if (!scrollGestureIntercepted) scrollGestureIntercepted = content.onInterceptTouchEvent(forwarded)
+    content.onTouchEvent(forwarded)
+    forwarded.recycle()
+    if (scrollLocked) forwardingScrollGesture = false
   }
 
   override fun startRefresh(notify: Boolean) {
@@ -252,6 +305,8 @@ internal class NitroRefreshView(context: Context) : FrameLayout(context), Refres
     dragging = false
     fingerDown = false
     nativeGesture = false
+    forwardingScrollGesture = false
+    scrollGestureIntercepted = false
     pointerId = MotionEvent.INVALID_POINTER_ID
     setScrollLocked(false)
     offsetPx = 0f

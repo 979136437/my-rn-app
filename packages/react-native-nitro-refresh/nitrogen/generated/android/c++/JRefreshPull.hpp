@@ -37,12 +37,15 @@ namespace margelo::nitro::refresh {
       double progress = this->getFieldValue(fieldProgress);
       static const auto fieldHeaderHeight = clazz->getField<double>("headerHeight");
       double headerHeight = this->getFieldValue(fieldHeaderHeight);
+      static const auto fieldTriggerDistance = clazz->getField<double>("triggerDistance");
+      double triggerDistance = this->getFieldValue(fieldTriggerDistance);
       static const auto fieldIsDragging = clazz->getField<jboolean>("isDragging");
       jboolean isDragging = this->getFieldValue(fieldIsDragging);
       return RefreshPull(
         offset,
         progress,
         headerHeight,
+        triggerDistance,
         static_cast<bool>(isDragging)
       );
     }
@@ -53,7 +56,7 @@ namespace margelo::nitro::refresh {
      */
     [[maybe_unused]]
     static jni::local_ref<JRefreshPull::javaobject> fromCpp(const RefreshPull& value) {
-      using JSignature = JRefreshPull(double, double, double, jboolean);
+      using JSignature = JRefreshPull(double, double, double, double, jboolean);
       static const auto clazz = javaClassStatic();
       static const auto create = clazz->getStaticMethod<JSignature>("fromCpp");
       return create(
@@ -61,6 +64,7 @@ namespace margelo::nitro::refresh {
         value.offset,
         value.progress,
         value.headerHeight,
+        value.triggerDistance,
         value.isDragging
       );
     }

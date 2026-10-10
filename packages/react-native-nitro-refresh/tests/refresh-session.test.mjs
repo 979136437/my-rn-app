@@ -56,6 +56,7 @@ test("latest handlers receive native state and unbounded pull progress", () => {
     offset: 90,
     progress: 1.5,
     headerHeight: 60,
+    triggerDistance: 60,
     isDragging: true,
   };
   native.events.onRefresh();

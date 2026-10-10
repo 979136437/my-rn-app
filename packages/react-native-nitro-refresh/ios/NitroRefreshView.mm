@@ -48,6 +48,7 @@ static void *NRScrollObservation = &NRScrollObservation;
   BOOL _animateOffset;
   BOOL _animatingToIdle;
   CGFloat _headerHeight;
+  CGFloat _triggerDistance;
   CGFloat _baseInsetTop;
   CGFloat _ownedInset;
   CGFloat _animationFromInset;
@@ -67,6 +68,7 @@ static void *NRScrollObservation = &NRScrollObservation;
     _controllerId = @"";
     _enabled = YES;
     _headerHeight = NRDefaultHeaderHeight;
+    _triggerDistance = NRDefaultHeaderHeight;
     self.hidden = YES;
     self.userInteractionEnabled = NO;
   }
@@ -84,7 +86,7 @@ static void *NRScrollObservation = &NRScrollObservation;
 - (void)emitPull {
   if (!_scrollView) return;
   BOOL dragging = _scrollView.isDragging && !_active && !_finishing;
-  [NRRefreshRegistry emitPull:_controllerId offset:[self pullOffset] height:_headerHeight isDragging:dragging];
+  [NRRefreshRegistry emitPull:_controllerId offset:[self pullOffset] height:_headerHeight triggerDistance:_triggerDistance isDragging:dragging];
 }
 
 - (void)writeOwnedInset:(CGFloat)value {
@@ -116,7 +118,7 @@ static void *NRScrollObservation = &NRScrollObservation;
   _finishing = NO;
   _header.hidden = !_enabled;
   [self setScrollLocked:NO];
-  [NRRefreshRegistry emitPull:_controllerId offset:0 height:_headerHeight isDragging:NO];
+  [NRRefreshRegistry emitPull:_controllerId offset:0 height:_headerHeight triggerDistance:_triggerDistance isDragging:NO];
   // Clear native flags first: the controller may immediately reopen on true.
   [NRRefreshRegistry emitState:_controllerId state:@"idle"];
 }
@@ -181,14 +183,14 @@ static void *NRScrollObservation = &NRScrollObservation;
   [self emitPull];
   if (_active || _finishing || !_enabled || !_scrollView.isDragging) return;
   CGFloat offset = [self pullOffset];
-  [NRRefreshRegistry emitState:_controllerId state:offset >= _headerHeight ? @"ready" : (offset > 0 ? @"pulling" : @"idle")];
+  [NRRefreshRegistry emitState:_controllerId state:offset >= _triggerDistance ? @"ready" : (offset > 0 ? @"pulling" : @"idle")];
 }
 
 - (void)panChanged:(UIPanGestureRecognizer *)pan {
   if (_active || _finishing || !_scrollView) return;
   if (pan.state != UIGestureRecognizerStateEnded && pan.state != UIGestureRecognizerStateCancelled && pan.state != UIGestureRecognizerStateFailed) return;
   CGFloat offset = [self pullOffset];
-  if (pan.state == UIGestureRecognizerStateEnded && _enabled && offset >= _headerHeight) {
+  if (pan.state == UIGestureRecognizerStateEnded && _enabled && offset >= _triggerDistance) {
     [self startRefreshWithNotify:YES fromGesture:YES];
   } else if (offset > 0) {
     _finishing = YES;
@@ -220,8 +222,14 @@ static void *NRScrollObservation = &NRScrollObservation;
   BOOL heightChanged = _headerHeight != next.headerHeight;
   _enabled = next.enabled;
   _headerHeight = next.headerHeight;
+  _triggerDistance = next.triggerDistance;
   _header.hidden = !_enabled && !_active && !_finishing;
   [self layoutHeader];
+  [self emitPull];
+  if (!_active && !_finishing && _enabled && _scrollView.isDragging) {
+    CGFloat offset = [self pullOffset];
+    [NRRefreshRegistry emitState:_controllerId state:offset >= _triggerDistance ? @"ready" : (offset > 0 ? @"pulling" : @"idle")];
+  }
   if (_active && !_finishing && heightChanged) [self animateInset:_headerHeight toIdle:NO];
   if (!_enabled && !_active && !_finishing && [self pullOffset] > 0) {
     _finishing = YES;

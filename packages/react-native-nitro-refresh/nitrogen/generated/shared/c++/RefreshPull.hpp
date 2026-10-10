@@ -42,11 +42,12 @@ namespace margelo::nitro::refresh {
     double offset     SWIFT_PRIVATE;
     double progress     SWIFT_PRIVATE;
     double headerHeight     SWIFT_PRIVATE;
+    double triggerDistance     SWIFT_PRIVATE;
     bool isDragging     SWIFT_PRIVATE;
 
   public:
     RefreshPull() = default;
-    explicit RefreshPull(double offset, double progress, double headerHeight, bool isDragging): offset(offset), progress(progress), headerHeight(headerHeight), isDragging(isDragging) {}
+    explicit RefreshPull(double offset, double progress, double headerHeight, double triggerDistance, bool isDragging): offset(offset), progress(progress), headerHeight(headerHeight), triggerDistance(triggerDistance), isDragging(isDragging) {}
 
   public:
     friend bool operator==(const RefreshPull& lhs, const RefreshPull& rhs) = default;
@@ -65,6 +66,7 @@ namespace margelo::nitro {
         JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "offset"))),
         JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "progress"))),
         JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "headerHeight"))),
+        JSIConverter<double>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "triggerDistance"))),
         JSIConverter<bool>::fromJSI(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "isDragging")))
       );
     }
@@ -73,6 +75,7 @@ namespace margelo::nitro {
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "offset"), JSIConverter<double>::toJSI(runtime, arg.offset));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "progress"), JSIConverter<double>::toJSI(runtime, arg.progress));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "headerHeight"), JSIConverter<double>::toJSI(runtime, arg.headerHeight));
+      obj.setProperty(runtime, PropNameIDCache::get(runtime, "triggerDistance"), JSIConverter<double>::toJSI(runtime, arg.triggerDistance));
       obj.setProperty(runtime, PropNameIDCache::get(runtime, "isDragging"), JSIConverter<bool>::toJSI(runtime, arg.isDragging));
       return obj;
     }
@@ -87,6 +90,7 @@ namespace margelo::nitro {
       if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "offset")))) return false;
       if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "progress")))) return false;
       if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "headerHeight")))) return false;
+      if (!JSIConverter<double>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "triggerDistance")))) return false;
       if (!JSIConverter<bool>::canConvert(runtime, obj.getProperty(runtime, PropNameIDCache::get(runtime, "isDragging")))) return false;
       return true;
     }

@@ -1,222 +1,284 @@
-"""ADB regression checks for the development example; requires Python and adb.
-
-Open the example first, then run with --adb PATH and optionally --serial DEVICE.
-UI labels and gestures below are test fixtures, not production configuration.
+"""Parameter-driven Android acceptance. Requires a matching native development client.
+No control buttons, fixed screen coordinates, or native builds are used.
 """
-
 import argparse
+import itertools
+import json
 import re
+import shlex
 import subprocess
-import sys
+import time
+import urllib.parse
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
-REMOTE_DUMP = "/sdcard/nitro-refresh-scroll-lock.xml"
-SWIPE_DURATION_MS = 500
-STATUS_PATTERN = re.compile(
-    r"(idle|pulling|ready|refreshing|finishing) · 下拉 .* · 滚动 (-?\d+) · 版本 (\d+) · 行点击 (\d+)"
-)
+REMOTE_DUMP = '/sdcard/nitro-refresh-acceptance.xml'
+TIMEOUT = 35
+DURATION_MS = 500
+DAMPING = 0.5  # Android RefreshDefaults.kt contract, test fixture only.
 
 
 class Example:
-    def __init__(self, adb, serial):
-        self.adb = [adb] + (["-s", serial] if serial else [])
+    def __init__(self, adb, serial, output, dev_server):
+        self.adb = [adb] + (['-s', serial] if serial else [])
+        self.output = Path(output)
+        self.dev_server = dev_server
+        self.params = {}
+        self.last_xml = b''
+        density = self.command('shell', 'wm', 'density').decode()
+        self.density = int(re.findall(r'(?:Physical|Override) density: (\d+)', density)[-1]) / 160
 
     def command(self, *args):
-        return subprocess.check_output([*self.adb, *map(str, args)])
+        output = subprocess.check_output([*self.adb, *map(str, args)], timeout=45, stderr=subprocess.STDOUT)
+        # Some Android input commands return zero even when unsupported.
+        if b'Error: Unknown command:' in output:
+            raise AssertionError(output.decode(errors='replace'))
+        return output
 
     def snapshot(self):
-        self.command("shell", "uiautomator", "dump", REMOTE_DUMP)
-        return list(ET.fromstring(self.command("shell", "cat", REMOTE_DUMP)).iter("node"))
+        self.command('shell', 'uiautomator', 'dump', REMOTE_DUMP)
+        self.last_xml = self.command('shell', 'cat', REMOTE_DUMP)
+        return list(ET.fromstring(self.last_xml).iter('node'))
+
+    def find(self, identifier, nodes=None):
+        for node in self.snapshot() if nodes is None else nodes:
+            if node.get('resource-id', '').split('/')[-1] == identifier:
+                return node
+        raise AssertionError(f'Missing {identifier}; client may be outdated, unloaded, or showing an error')
+
+    def status(self, name='A', nodes=None):
+        node = self.find(f'demo-{name}-status', nodes)
+        text = node.get('content-desc', '')
+        if not text.startswith(f'name={name};'):
+            raise AssertionError(f'Diagnostic payload unavailable: {text}')
+        return dict(item.split('=', 1) for item in text.split(';'))
+
+    def wait(self, predicate, name='A', timeout=TIMEOUT):
+        deadline = time.monotonic() + timeout
+        last = None
+        while time.monotonic() < deadline:
+            try:
+                last = self.status(name)
+                if predicate(last):
+                    return last
+            except AssertionError as error:
+                last = str(error)
+            time.sleep(0.2)
+        raise AssertionError(f'Timeout for {name}: {last}')
+
+    def open(self, name='A', **params):
+        self.launch(params)
+        return self.wait(lambda s: True, name)
+
+    def launch(self, params):
+        self.params = params
+        # Cold launch prevents previous route params, histories and tasks leaking into a case.
+        self.command('shell', 'am', 'force-stop', 'com.x18588283042.myapp')
+        boot = 'exp+my-app://expo-development-client/?url=' + urllib.parse.quote(self.dev_server, safe='')
+        self.command('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', shlex.quote(boot), 'com.x18588283042.myapp')
+        deadline = time.monotonic() + TIMEOUT
+        while time.monotonic() < deadline:
+            nodes = self.snapshot()
+            texts = [n.get('text', '') for n in nodes if n.get('package') == 'com.x18588283042.myapp']
+            if 'There was a problem loading the project.' in texts:
+                raise AssertionError('Development client failed to connect to Metro; ensure --dev-server is running and reachable')
+            if any(n.get('resource-id', '').endswith(('refresh-demo-entry', '-status')) for n in nodes):
+                break
+            time.sleep(0.2)
+        else:
+            raise AssertionError('React page did not load; ensure device is unlocked and development client can reach Metro')
+        url = 'myapp://refresh-demo?' + urllib.parse.urlencode(params, doseq=True)
+        # adb joins remote argv; shell-quote URL so & cannot execute as a shell operator.
+        self.command('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', shlex.quote(url), 'com.x18588283042.myapp')
 
     @staticmethod
     def bounds(node):
-        return tuple(map(int, re.findall(r"\d+", node.get("bounds", ""))))
+        return tuple(map(int, re.findall(r'\d+', node.get('bounds', ''))))
 
-    def position(self, label):
-        for node in self.snapshot():
-            if label in (node.get("text"), node.get("content-desc")):
-                left, top, right, bottom = self.bounds(node)
-                if right > left and bottom > top:
-                    return (left + right) // 2, (top + bottom) // 2
-        raise AssertionError(f"Visible button missing: {label}")
+    def swipe(self, down=True, offset=None, name='A'):
+        left, top, right, bottom = self.bounds(self.find(f'demo-{name}-viewport'))
+        height = bottom - top
+        margin = max(1, height // 12)
+        start = top + margin if down else bottom - margin
+        distance = height - 2 * margin if offset is None else round(offset * self.density / DAMPING)
+        if distance > height - 2 * margin:
+            raise AssertionError(f'Gesture needs {distance}px but viewport has {height - 2 * margin}px; use smaller threshold or larger device')
+        end = start + distance if down else start - distance
+        x = (left + right) // 2
+        self.command('shell', 'input', 'swipe', x, start, x, end, DURATION_MS)
 
-    def tap(self, label):
-        self.command("shell", "input", "tap", *self.position(label))
+    def pull_back(self):
+        left, top, right, bottom = self.bounds(self.find('demo-A-viewport'))
+        x = (left + right) // 2
+        start = top + (bottom - top) // 12
+        distance = round(90 * self.density / DAMPING)
+        assert start + distance < bottom, 'Viewport too small for pull-back fixture'
+        # OEM help may call this "event", but the actual command is motionevent.
+        self.command('shell', 'input', 'motionevent', 'DOWN', x, start)
+        try:
+            for fraction in [0.25, 0.5, 0.75, 1, 0.75, 0.5, 0.25]:
+                self.command('shell', 'input', 'motionevent', 'MOVE', x, round(start + distance * fraction))
+        finally:
+            self.command('shell', 'input', 'motionevent', 'UP', x, round(start + distance * 0.25))
+        state = self.finished(requests=0, revision=0)
+        assert float(state['peak']) > 1 and 'ready' in state['events'], state
 
-    def status(self):
-        for node in self.snapshot():
-            match = STATUS_PATTERN.fullmatch(node.get("text", ""))
-            if match:
-                state, offset, version, clicks = match.groups()
-                return state, int(offset), int(version), int(clicks)
-        raise AssertionError("Example status missing")
+    def tap_row(self, name='A'):
+        node = self.find(f'demo-{name}-row-1')
+        left, top, right, bottom = self.bounds(node)
+        self.command('shell', 'input', 'tap', (left + right) // 2, (top + bottom) // 2)
 
-    def swipe_arguments(self, down=False):
-        # Expo's outer container can also report ScrollView; target the inner
-        # list/scroll view rather than starting a gesture over the toolbar.
-        for node in reversed(self.snapshot()):
-            if node.get("class") == "android.widget.ScrollView":
-                left, top, right, bottom = self.bounds(node)
-                if right > left and bottom > top:
-                    x = (left + right) // 2
-                    start = top + (bottom - top) * 3 // 4
-                    end = top + (bottom - top) // 4
-                    if down:
-                        start, end = end, start
-                    return x, start, x, end, SWIPE_DURATION_MS
-        raise AssertionError("Scrollable content missing")
+    def finished(self, requests=1, revision=1, name='A'):
+        return self.wait(lambda s: s['state'] == 'idle' and int(s['requests']) == requests and int(s['revision']) == revision and abs(float(s['offset'])) < 0.5, name)
 
-    def swipe(self, down=False):
-        self.command("shell", "input", "swipe", *self.swipe_arguments(down))
+    def preflight(self):
+        self.open(scenario='initial-refresh', headerHeight=60, triggerDistance=90, refreshDurationMs=15000)
+        state = self.wait(lambda s: s['state'] == 'refreshing')
+        assert state['nativeTrigger'] != 'none', 'Native client has old RefreshPull bindings; compile and install the updated client before native tests'
+        assert float(state['nativeTrigger']) == 90, 'Native client does not include triggerDistance; rebuild requires separate authorization'
+        assert abs(float(state['offset']) - 60) < 1, state
+        assert abs(float(state['progress']) - 60 / 90) < 0.02, state
 
-    def check_locked(self):
-        before = self.status()
-        assert before[0] == "refreshing", before
-        self.swipe()
-        after = self.status()
-        assert after[:2] == before[:2], (before, after)
-        self.swipe(down=True)
-        assert self.status()[:2] == before[:2]
+    def matrix(self):
+        for container, content, header in itertools.product(['scroll-view', 'flat-list', 'section-list'], ['long', 'short', 'empty'], ['default', 'lottie']):
+            self.open(container=container, content=content, header=header)
+            self.swipe(offset=90)
+            state = self.finished()
+            assert state['dragged'] == 'true' and float(state['peak']) >= 1, state
+            assert 'ready' in state['events'] and 'refreshing' in state['events'], state
+            print(f'PASS matrix {container}/{content}/{header}', flush=True)
 
-    def run(self):
-        for mode in ("默认列表", "自定义 Header"):
-            # Switching through short content also guarantees a fresh instance.
-            self.tap("短内容")
-            self.tap(mode)
-            self.tap("主动刷新")
-            self.check_locked()
-            before = self.status()
-            self.tap("点击第1条")
-            assert self.status()[3] == before[3] + 1
-            self.tap("滚到第5条")
-            assert self.status()[1] > before[1]
-            self.check_locked()
-            self.tap("关闭列表滚动")
-            self.tap("开启列表滚动")
-            self.check_locked()
-            self.tap("滚到顶部")
-            assert self.status()[1] == 0, self.status()
-
-            # Do not dump UI between finishing and the swipe: it would miss the
-            # short native rebound. The intercepted stream stays consumed to UP.
-            finish = self.position("完成")
-            swipe = self.swipe_arguments()
-            self.command("shell", "input", "tap", *finish)
-            self.command("shell", "input", "swipe", *swipe)
-            assert self.status()[:2] == ("idle", 0), self.status()
+    def gestures(self):
+        for height, trigger in [(90, 40), (60, 60), (60, 90), (30, 130)]:
+            self.open(headerHeight=height, triggerDistance=trigger)
+            self.swipe(offset=trigger / 2)
+            self.finished(requests=0, revision=0)
+            self.swipe(offset=trigger * 1.25)
+            state = self.finished()
+            assert float(state['peak']) > 1 and state['clicks'] == '0', state
+            print(f'PASS threshold height={height} trigger={trigger}', flush=True)
+        self.open()
+        self.pull_back()
+        for flag in ['enabled', 'scrollEnabled']:
+            self.open(**{flag: 'false'})
             self.swipe()
-            assert self.status()[1] > 0, self.status()
-            print(f"PASS: {mode}: lock, taps, programmatic scroll, prop updates, finishing and unlock", flush=True)
+            assert self.status()['requests'] == '0'
+        self.open(initialOffset=180)
+        before = self.wait(lambda s: float(s['scroll']) > 100)
+        self.swipe(offset=30)
+        assert self.status()['requests'] == '0', before
+        self.open()
+        self.tap_row()
+        assert self.status()['clicks'] == '1'
+        self.swipe(offset=90)
+        assert self.finished()['clicks'] == '1', 'Dragging must cancel the row press'
+        for result, revision in [('failure', 0), ('reject', 0), ('success', 1)]:
+            self.open(result=result)
+            self.swipe(offset=90)
+            self.finished(revision=revision)
+            self.swipe(offset=90)
+            self.finished(requests=2, revision=revision * 2)
+        self.open(refreshDurationMs=20000)
+        self.swipe(offset=90)
+        locked = self.wait(lambda s: s['state'] == 'refreshing')
+        for down in [False, True]:
+            self.swipe(down=down)
+            after = self.status()
+            assert after['state'] == 'refreshing' and abs(float(after['scroll']) - float(locked['scroll'])) < 1, after
+        self.tap_row()
+        assert self.status()['clicks'] == '1'
+        self.finished()
+        self.swipe(down=False)
+        self.wait(lambda s: float(s['scroll']) > 10)
+        print('PASS thresholds, flags, non-top, clicks, retry, lock and unlock', flush=True)
 
-        self.tap("短内容")
-        self.tap("默认列表")
-        self.swipe(down=True)
-        self.check_locked()
-        self.tap("关闭列表滚动")
-        self.tap("失败")
-        before = self.status()
-        assert before[0] == "idle", before
-        self.swipe()
-        assert self.status()[1] == before[1]
-        self.tap("开启列表滚动")
-        self.swipe()
-        assert self.status()[1] > before[1]
-        print("PASS: gesture refresh and caller scrollEnabled=false preserved after failure")
+    def lifecycle(self):
+        for scenario in ['initial-refresh', 'begin-twice', 'disable-refreshing', 'reopen-finishing', 'update-height', 'update-threshold']:
+            overrides = {'triggerDistance': 60} if scenario == 'update-threshold' else {}
+            self.open(scenario=scenario, **overrides)
+            if scenario not in ['initial-refresh', 'begin-twice']:
+                self.swipe(offset=150 if scenario == 'update-threshold' else 90)
+            expected_requests = 0 if scenario == 'initial-refresh' else 1
+            expected_revision = 2 if scenario == 'reopen-finishing' else 1
+            state = self.finished(expected_requests, expected_revision)
+            if scenario == 'disable-refreshing':
+                assert state['enabled'] == 'false'
+            if scenario == 'update-height':
+                assert float(state['height']) == 120 and float(state['nativeTrigger']) == 120
+            if scenario == 'update-threshold':
+                assert float(state['trigger']) == 120 and float(state['nativeTrigger']) == 120
+            print(f'PASS lifecycle {scenario}', flush=True)
+        self.open(scenario='unmount-refreshing', refreshDurationMs=500)
+        self.swipe(offset=90)
+        self.find('demo-A-unmounted')
+        time.sleep(0.6)
+        self.find('demo-A-unmounted')
+        self.open(name='B', scenario='two-instances')
+        self.find('demo-A-unmounted')
+        self.swipe(offset=90, name='B')
+        self.finished(name='B')
+        self.open()
+        self.finished(requests=0, revision=0)
+        print('PASS unmount, isolation and route re-entry', flush=True)
 
-        self.tap("短内容")
-        self.tap("主动刷新")
-        before = self.status()
-        self.tap("行内点击")
-        assert self.status()[3] == before[3] + 1
-        self.tap("失败")
-        assert self.status()[0] == "idle"
-        print("PASS: short ScrollView refresh, row tap and failure")
+    def disabled_requests(self):
+        self.open(scenario='initial-refresh', enabled='false')
+        self.finished(requests=0, revision=1)
+        self.open(scenario='begin-twice', enabled='false')
+        self.finished(requests=0, revision=0)
+        print('PASS controlled refresh allowed while disabled; explicit begin rejected', flush=True)
 
-    def lifecycle_status(self, name):
-        pattern = re.compile(
-            rf"{name}:(\w+):(true|false):requests=(\d+):enabled=(true|false):reject=(true|false):scroll=(\d+):clicks=(\d+)"
-        )
-        for node in self.snapshot():
-            match = pattern.fullmatch(node.get("text", ""))
-            if match:
-                return match.groups()
-        raise AssertionError(f"Lifecycle control missing: {name}")
+    def parameters(self):
+        for params in [{'headerHeight': '0'}, {'triggerDistance': 'NaN'}, {'enabled': 'yes'}, {'container': 'unknown'}, {'unknown': '1'}, {'header': ''}, {'headerHeight': ['60', '80']}]:
+            self.launch(params)
+            deadline = time.monotonic() + TIMEOUT
+            while time.monotonic() < deadline:
+                nodes = self.snapshot()
+                if any(n.get('resource-id', '').split('/')[-1] == 'demo-parameter-error' for n in nodes):
+                    assert not any(n.get('resource-id', '').endswith('demo-A-status') for n in nodes)
+                    break
+                time.sleep(0.2)
+            else:
+                raise AssertionError(f'Invalid parameters did not show error: {params}')
+        print('PASS invalid route parameters do not mount native control', flush=True)
 
-    def run_lifecycle(self):
-        # Mount native-acceptance-screen.tsx in a temporary development route.
-        initial = self.lifecycle_status("A")
-        assert initial[:4] == ("refreshing", "true", "0", "false"), initial
-        self.tap("A begin twice")
-        assert self.lifecycle_status("A")[2] == "0"
-        self.tap("A row tap")
-        assert self.lifecycle_status("A")[6] == "1"
-        self.tap("B begin twice")
-        assert self.lifecycle_status("B")[:3] == ("refreshing", "true", "1")
-        self.tap("B begin twice")
-        assert self.lifecycle_status("B")[2] == "1"
-        self.tap("B reopen")
-        assert self.lifecycle_status("B")[:3] == ("refreshing", "true", "1")
-        self.tap("toggle A")
-        assert self.lifecycle_status("B")[:3] == ("refreshing", "true", "1")
-        self.swipe()
-        assert self.lifecycle_status("B")[5] == "0"
-        self.tap("B row tap")
-        assert self.lifecycle_status("B")[6] == "1"
-        self.tap("B stop")
-        assert self.lifecycle_status("B")[:2] == ("idle", "false")
-        self.swipe()
-        assert int(self.lifecycle_status("B")[5]) > 0
-        self.tap("B reject")
-        self.tap("B begin twice")
-        assert self.lifecycle_status("B")[:3] == ("idle", "false", "2")
-        self.swipe()
-        assert int(self.lifecycle_status("B")[5]) > 0
-        print("PASS: initial true, disabled/empty SectionList, row taps, duplicates, reopen, multiple instances, unmount and rejected request", flush=True)
-
-    def run_native_gestures(self):
-        # Fresh lifecycle screen; test distances are in dp, converted to pixels.
-        self.tap("toggle A")
-        density_text = self.command("shell", "wm", "density").decode()
-        density = int(re.findall(r"density: (\d+)", density_text)[-1]) / 160
-        x, y = self.position("B row tap")
-        self.command("shell", "input", "swipe", x, y, x, y + round(30 * density), SWIPE_DURATION_MS)
-        assert self.lifecycle_status("B")[:3] == ("idle", "false", "0")
-        assert self.lifecycle_status("B")[6] == "0", "intercepted drag must cancel row press"
-        self.command("shell", "input", "swipe", x, y, x, y + round(160 * density), SWIPE_DURATION_MS)
-        assert self.lifecycle_status("B")[:3] == ("refreshing", "true", "1")
-        texts = [node.get("text", "") for node in self.snapshot()]
-        events = next(text for text in texts if text.startswith("B events:"))
-        assert "pulling>finishing>idle" in events, events
-        assert "ready>refreshing" in events, events
-        peak = next(text for text in texts if text.startswith("B peak:"))
-        match = re.fullmatch(r"B peak:([\d.]+):dragged=true", peak)
-        assert match and float(match[1]) > 1, peak
-        self.swipe()
-        assert self.lifecycle_status("B")[5] == "0"
-        self.tap("B stop")
-        assert self.lifecycle_status("B")[:2] == ("idle", "false")
-        pull = next(node.get("text", "") for node in self.snapshot() if node.get("text", "").startswith("B pull:"))
-        assert pull == "B pull:0:progress=0.00:dragging=false", pull
-        self.swipe()
-        assert int(self.lifecycle_status("B")[5]) > 0
-        print("PASS: below threshold, drag cancels row press, ready/release, progress above one, drag flag, lock and final idle/zero", flush=True)
+    def evidence(self, error):
+        self.output.mkdir(parents=True, exist_ok=True)
+        try:
+            self.snapshot()
+        except Exception:
+            pass
+        (self.output / 'failure-ui.xml').write_bytes(self.last_xml)
+        keys = ['ro.product.model', 'ro.build.version.sdk', 'ro.build.version.release', 'ro.product.cpu.abi']
+        device = {key: self.command('shell', 'getprop', key).decode(errors='replace').strip() for key in keys}
+        info = {'parameters': self.params, 'error': str(error), 'device': device}
+        (self.output / 'failure.json').write_text(json.dumps(info, ensure_ascii=False, indent=2), encoding='utf-8')
 
 
-if __name__ == "__main__":
-    sys.stdout.reconfigure(encoding="utf-8")
+def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--adb", required=True)
-    parser.add_argument("--serial")
-    parser.add_argument("--lifecycle", action="store_true", help="Run against native-acceptance-screen.tsx instead of the example")
-    parser.add_argument("--native-gestures", action="store_true", help="Check native drag transitions on a fresh lifecycle screen")
+    parser.add_argument('--adb', required=True)
+    parser.add_argument('--serial')
+    parser.add_argument('--dev-server', default='http://127.0.0.1:8081')
+    parser.add_argument('--suite', choices=['all', 'preflight', 'matrix', 'gestures', 'lifecycle', 'parameters', 'disabled-requests'], default='all')
+    parser.add_argument('--output', default='packages/react-native-nitro-refresh/tests/artifacts')
     args = parser.parse_args()
-    example = Example(args.adb, args.serial)
+    example = Example(args.adb, args.serial, args.output, args.dev_server)
     try:
-        if args.native_gestures:
-            example.run_native_gestures()
-        elif args.lifecycle:
-            example.run_lifecycle()
-        else:
-            example.run()
-    finally:
-        example.command("shell", "rm", "-f", REMOTE_DUMP)
+        if urllib.parse.urlparse(args.dev_server).hostname in ['127.0.0.1', 'localhost']:
+            port = urllib.parse.urlparse(args.dev_server).port or 8081
+            example.command('reverse', f'tcp:{port}', f'tcp:{port}')
+        example.preflight()
+        print('PASS native interface preflight', flush=True)
+        for suite in ['matrix', 'gestures', 'lifecycle', 'parameters']:
+            if args.suite in ['all', suite]:
+                getattr(example, suite)()
+        if args.suite in ['all', 'disabled-requests']:
+            example.disabled_requests()
+    except Exception as error:
+        example.evidence(error)
+        raise SystemExit(f'FAIL: {error}; evidence: {example.output}') from error
+
+
+if __name__ == '__main__':
+    main()

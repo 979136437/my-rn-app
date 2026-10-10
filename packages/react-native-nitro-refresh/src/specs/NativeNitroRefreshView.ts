@@ -6,6 +6,7 @@ export interface NativeProps extends ViewProps {
   enabled?: CodegenTypes.WithDefault<boolean, true>;
   // Fabric codegen requires a literal; keep aligned with DEFAULT_HEADER_HEIGHT.
   headerHeight?: CodegenTypes.WithDefault<CodegenTypes.Float, 60>;
+  triggerDistance?: CodegenTypes.WithDefault<CodegenTypes.Float, 60>;
 }
 
 export default codegenNativeComponent<NativeProps>(

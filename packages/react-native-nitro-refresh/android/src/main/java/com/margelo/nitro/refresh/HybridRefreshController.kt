@@ -107,8 +107,8 @@ class HybridRefreshController : HybridRefreshControllerSpec() {
     }
   }
 
-  internal fun emitPull(offset: Double, height: Double, isDragging: Boolean) {
-    if (!invalidated && height > 0) onPull?.invoke(RefreshPull(offset, offset / height, height, isDragging))
+  internal fun emitPull(offset: Double, height: Double, triggerDistance: Double, isDragging: Boolean) {
+    if (!invalidated && height > 0 && triggerDistance > 0) onPull?.invoke(RefreshPull(offset, offset / triggerDistance, height, triggerDistance, isDragging))
   }
 
   override fun invalidate() {
