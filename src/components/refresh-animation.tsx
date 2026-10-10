@@ -23,9 +23,10 @@ export function RefreshAnimation({
 
   return (
     <AnimatedLottie
-      className="h-[48px] w-[120px]"
+      className="h-full"
+      style={{ aspectRatio: source.w / source.h }}
       source={source}
-      resizeMode="cover"
+      resizeMode="contain"
       autoPlay={false}
       loop={false}
       animatedProps={animatedProps}

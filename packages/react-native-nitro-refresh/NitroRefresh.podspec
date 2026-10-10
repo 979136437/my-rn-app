@@ -13,7 +13,6 @@ Pod::Spec.new do |s|
   s.platforms = { :ios => min_ios_version_supported }
   s.swift_version = '5.0'
   s.source_files = 'ios/**/*.{h,mm,swift}'
-  s.dependency 'MJRefresh', '3.7.9'
   load File.join(__dir__, 'nitrogen/generated/ios/NitroRefresh+autolinking.rb')
   add_nitrogen_files(s)
   install_modules_dependencies(s)

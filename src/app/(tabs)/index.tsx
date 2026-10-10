@@ -1,20 +1,111 @@
+import loadingAnimation from "@/assets/animation/loading.json";
+import { RefreshAnimation } from "@/components/refresh-animation";
 import { delay, random } from "@/utils";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FlatList, Pressable, ScrollView, Text, View } from "react-native";
 import {
-  DefaultRefreshHeader,
   NitroRefreshControl,
+  REFRESH_STATES,
   type NitroRefreshControlRef,
+  type RefreshHeaderProps,
   type RefreshPull,
   type RefreshState,
 } from "react-native-nitro-refresh";
+import {
+  cancelAnimation,
+  Easing,
+  ReduceMotion,
+  useReducedMotion,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from "react-native-reanimated";
 
 type Demo = "list" | "short" | "custom";
-// Local demonstration values; production data does not depend on this screen.
-const rows = Array.from({ length: 30 }, (_, index) => index + 1);
-const CUSTOM_HEADER_HEIGHT = 80;
-const CUSTOM_INDICATOR_COLOR = "#6366f1";
-const SCROLL_EVENT_THROTTLE_MS = 32;
+// Local demonstration data and timing; not production business rules.
+const DEMO_ROW_COUNT = 30;
+const DEMO_SCROLL_TARGET_INDEX = 4;
+const DEMO_COMPLETION_DELAY_MS = { min: 1000, max: 3000 };
+const DEMO_REFRESH_MESSAGES = {
+  pending: "刷新中：点击完成或失败结束",
+  completed: "刷新完成",
+};
+const CUSTOM_HEADER_LABELS = {
+  pulling: "继续下拉，更新本地数据",
+  ready: "松手更新",
+  refreshing: "正在更新本地数据",
+};
+const MILLISECONDS_PER_SECOND = 1000;
+const LOTTIE_REPEAT_FOREVER = -1;
+const rows = Array.from({ length: DEMO_ROW_COUNT }, (_, index) => index + 1);
+const LOTTIE_CYCLE_DURATION_MS =
+  ((loadingAnimation.op - loadingAnimation.ip) / loadingAnimation.fr) *
+  MILLISECONDS_PER_SECOND;
+
+function LottieRefreshHeader({
+  state,
+  progress,
+  isDragging,
+}: RefreshHeaderProps) {
+  const animationProgress = useSharedValue<number>(0);
+  const reducedMotion = useReducedMotion();
+  const refreshing = state === REFRESH_STATES.refreshing;
+  useEffect(() => {
+    if (refreshing && !reducedMotion) {
+      animationProgress.set(0);
+      animationProgress.set(
+        withRepeat(
+          withTiming(1, {
+            duration: LOTTIE_CYCLE_DURATION_MS,
+            easing: Easing.linear,
+            reduceMotion: ReduceMotion.System,
+          }),
+          LOTTIE_REPEAT_FOREVER,
+          false,
+          undefined,
+          ReduceMotion.System,
+        ),
+      );
+    }
+    return () => cancelAnimation(animationProgress);
+  }, [animationProgress, reducedMotion, refreshing]);
+  useEffect(() => {
+    if (!refreshing || reducedMotion) {
+      animationProgress.set(
+        reducedMotion ? 0 : Math.min(Math.max(progress, 0), 1),
+      );
+    }
+  }, [animationProgress, progress, reducedMotion, refreshing]);
+
+  const label =
+    refreshing || state === REFRESH_STATES.finishing
+      ? CUSTOM_HEADER_LABELS.refreshing
+      : state === REFRESH_STATES.ready
+        ? CUSTOM_HEADER_LABELS.ready
+        : CUSTOM_HEADER_LABELS.pulling;
+  return (
+    <View
+      className="h-full flex-row items-center justify-center gap-2 bg-indigo-50 dark:bg-indigo-950"
+      accessible
+      accessibilityLabel={label}
+      accessibilityLiveRegion="polite"
+    >
+      <RefreshAnimation
+        source={loadingAnimation}
+        progress={animationProgress}
+      />
+      <View className="justify-center gap-1">
+        <Text className="text-sm text-indigo-600 dark:text-indigo-300">
+          {label}
+        </Text>
+        <Text className="text-xs text-indigo-500 dark:text-indigo-300">
+          进度 {Math.round(progress * 100)}% ·{" "}
+          {isDragging ? "拖拽" : "回弹/静止"}
+        </Text>
+      </View>
+    </View>
+  );
+}
 
 function DemoButton({
   label,
@@ -52,17 +143,19 @@ function RefreshDemo({ mode }: { mode: Demo }) {
     isDragging: false,
   });
   const [revision, setRevision] = useState(0);
-  const [result, setResult] = useState("下拉列表开始，或点击主动刷新");
+  const [result, setResult] = useState<string>("下拉列表开始，或点击主动刷新");
   const [scrollY, setScrollY] = useState(0);
   const [rowClicks, setRowClicks] = useState(0);
   const [scrollEnabled, setScrollEnabled] = useState(true);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    setResult("刷新中：点击完成或失败结束");
-    await delay(random(1000, 3000));
+    setResult(DEMO_REFRESH_MESSAGES.pending);
+    await delay(
+      random(DEMO_COMPLETION_DELAY_MS.min, DEMO_COMPLETION_DELAY_MS.max),
+    );
     setRefreshing(false);
-    setResult("刷新完成");
+    setResult(DEMO_REFRESH_MESSAGES.completed);
   };
 
   const control = (
@@ -73,28 +166,9 @@ function RefreshDemo({ mode }: { mode: Demo }) {
       onRefresh={onRefresh}
       onStateChange={setState}
       onPull={setPull}
-      headerHeight={mode === "custom" ? CUSTOM_HEADER_HEIGHT : undefined}
       renderHeader={
         mode === "custom"
-          ? (header) => (
-              <View className="h-full justify-center bg-indigo-50 dark:bg-indigo-950">
-                <DefaultRefreshHeader
-                  {...header}
-                  className="h-auto py-2"
-                  textClassName="text-indigo-600 dark:text-indigo-300"
-                  indicatorColor={CUSTOM_INDICATOR_COLOR}
-                  labels={{
-                    pulling: "继续下拉，更新本地数据",
-                    ready: "松手更新",
-                    refreshing: "正在更新本地数据",
-                  }}
-                />
-                <Text className="text-center text-xs text-indigo-500 dark:text-indigo-300">
-                  进度 {Math.round(header.progress * 100)}% ·{" "}
-                  {header.isDragging ? "拖拽" : "回弹/静止"}
-                </Text>
-              </View>
-            )
+          ? (header) => <LottieRefreshHeader {...header} />
           : undefined
       }
     />
@@ -137,8 +211,12 @@ function RefreshDemo({ mode }: { mode: Demo }) {
             }}
           />
           <DemoButton
-            label="滚到第5条"
-            onPress={() => listRef.current?.scrollToIndex({ index: 4 })}
+            label={`滚到第${DEMO_SCROLL_TARGET_INDEX + 1}条`}
+            onPress={() =>
+              listRef.current?.scrollToIndex({
+                index: DEMO_SCROLL_TARGET_INDEX,
+              })
+            }
             disabled={mode === "short"}
           />
           <DemoButton
@@ -164,7 +242,7 @@ function RefreshDemo({ mode }: { mode: Demo }) {
           onMomentumScrollEnd={(event) =>
             setScrollY(event.nativeEvent.contentOffset.y)
           }
-          scrollEventThrottle={SCROLL_EVENT_THROTTLE_MS}
+          scrollEventThrottle={32}
           scrollEnabled={scrollEnabled}
         >
           <View className="mx-4 rounded-xl bg-slate-100 p-5 dark:bg-slate-900">
@@ -192,7 +270,7 @@ function RefreshDemo({ mode }: { mode: Demo }) {
           onMomentumScrollEnd={(event) =>
             setScrollY(event.nativeEvent.contentOffset.y)
           }
-          scrollEventThrottle={SCROLL_EVENT_THROTTLE_MS}
+          scrollEventThrottle={32}
           scrollEnabled={scrollEnabled}
           renderItem={({ item }) => (
             <View className="mx-4 mb-2 rounded-xl bg-slate-100 p-4 dark:bg-slate-900">

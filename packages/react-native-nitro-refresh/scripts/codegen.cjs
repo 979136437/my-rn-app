@@ -11,7 +11,11 @@ const root = path.resolve(__dirname, "..");
 const schema = combineSchemas([
   path.join(root, "src/specs/NativeNitroRefreshView.ts"),
 ]);
-for (const platform of ["android", "ios"]) {
+const platformGenerators = {
+  android: "componentsAndroid",
+  ios: "componentsIOS",
+};
+for (const [platform, generator] of Object.entries(platformGenerators)) {
   const outputDirectory = path.join(root, "generated", platform);
   fs.mkdirSync(outputDirectory, { recursive: true });
   codegen.generate(
@@ -23,9 +27,7 @@ for (const platform of ["android", "ios"]) {
       assumeNonnull: true,
     },
     {
-      generators: [
-        platform === "android" ? "componentsAndroid" : "componentsIOS",
-      ],
+      generators: [generator],
     },
   );
 }

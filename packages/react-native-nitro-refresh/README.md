@@ -1,44 +1,28 @@
 # react-native-nitro-refresh
 
-本 workspace 的 iOS / Android 受控下拉刷新组件。参考
-[react-native-SmartRefreshLayout](https://github.com/react-native-studio/react-native-SmartRefreshLayout)
-的 Android 原生容器、自定义 Header 与进度事件，以及
-[react-native-MJRefresh](https://github.com/react-native-studio/react-native-MJRefresh)
-的 iOS Header 状态/进度挂钩，重新实现 RN 0.86 新架构接入。
+本 workspace 的 iOS / Android 受控下拉刷新组件。
 
-Android 使用 SmartRefreshLayout 2.1.1 内核，iOS 使用 MJRefresh 3.7.9。
+Android 使用自定义 ViewGroup，iOS 使用 UIScrollView 与自定义 Header，
+不依赖 SmartRefreshLayout、MJRefresh 或 AndroidX SwipeRefreshLayout。
 Fabric 挂载视图，Nitro 控制刷新并传递业务回调；不使用旧 bridge 命令。
 iOS 使用 RN 自定义刷新视图协议，无需复制或替换 ScrollView。
 
+Android 在列表顶部接管向下拖动，使用 0.5 阻尼，最大显示距离为 Header
+高度的两倍；达到 Header 高度后松手触发刷新。iOS 使用 UIScrollView 自身
+的下拉弹性，按扣除组件增量后的安全区/inset 计算相同刷新阈值。
+原生容器展开与收起默认 300ms，尊重系统减少动态效果或禁用动画设置。
+取消手势不触发刷新；未达阈值收起不会启动列表滚动锁。
+
 ## 使用
 
-iOS 静态库集成需要为 MJRefresh 开启 modular headers，使 NitroRefresh 的
-Swift 目标可以使用其模块映射。本应用使用 Expo 官方 `expo-build-properties`
-插件，在 `app.json` 的 `plugins` 中配置：
-
-```json
-[
-  "expo-build-properties",
-  {
-    "ios": {
-      "extraPods": [{ "name": "MJRefresh", "modular_headers": true }]
-    }
-  }
-]
-```
-
-版本继续由 NitroRefresh.podspec 的依赖声明约束，不全局开启 modular headers。
-该配置在 prebuild 时自动应用，现有 Codemagic 流程无需维护或复制 Podfile。
-仅影响 iOS，Android 继续通过子包的 Gradle 配置接入。本地 macOS 可执行：
+通过 RN 自动链接接入两端原生容器，不需要刷新引擎 Pod 或额外 Expo 配置插件。
+更换原生实现后需重新生成/构建开发客户端；本地 macOS 可执行：
 
 ```sh
-npx expo install expo-build-properties
 npx expo prebuild --platform ios --no-install
 cd ios && pod install
 ```
 
-非 Expo 宿主可在应用 target 的 Podfile 内手动添加
-`pod 'MJRefresh', :modular_headers => true`。
 Windows 无法验证 CocoaPods 安装及 iOS 编译结果。
 
 需要包含本原生包的开发构建，不支持 Expo Go。支持 RN 自带的纵向、非倒置
@@ -48,7 +32,10 @@ ScrollView、FlatList、SectionList；不支持 Web、横向滚动或上拉加�
 ```tsx
 import { useRef, useState } from "react";
 import { FlatList } from "react-native";
-import { NitroRefreshControl, type NitroRefreshControlRef } from "react-native-nitro-refresh";
+import {
+  NitroRefreshControl,
+  type NitroRefreshControlRef,
+} from "react-native-nitro-refresh";
 
 const [refreshing, setRefreshing] = useState(false);
 const refreshRef = useRef<NitroRefreshControlRef>(null);
@@ -66,7 +53,11 @@ async function handleRefresh() {
   data={items}
   renderItem={renderItem}
   refreshControl={
-    <NitroRefreshControl ref={refreshRef} refreshing={refreshing} onRefresh={handleRefresh} />
+    <NitroRefreshControl
+      ref={refreshRef}
+      refreshing={refreshing}
+      onRefresh={handleRefresh}
+    />
   }
 />;
 refreshRef.current?.beginRefresh();
@@ -87,16 +78,16 @@ refreshRef.current?.beginRefresh();
 
 ## 接口
 
-| 属性 | 默认值 | 含义 |
-| --- | --- | --- |
-| `refreshing` | 必填 | 受控刷新状态 |
-| `onRefresh` | 必填 | 手势或主动刷新请求 |
-| `enabled` | `true` | 启用用户请求 |
-| `headerHeight` | `60` | 高度和触发距离，dp，必须为正有限数 |
-| `renderHeader` | 默认 Header | `(props: RefreshHeaderProps) => ReactNode` |
-| `onStateChange` | — | `idle / pulling / ready / refreshing / finishing` |
-| `onPull` | — | `{ offset, progress, headerHeight, isDragging }` |
-| `className` / `style` | — | 原生外层样式；Android 滚动组件会注入布局 style |
+| 属性                  | 默认值      | 含义                                              |
+| --------------------- | ----------- | ------------------------------------------------- |
+| `refreshing`          | 必填        | 受控刷新状态                                      |
+| `onRefresh`           | 必填        | 手势或主动刷新请求                                |
+| `enabled`             | `true`      | 启用用户请求                                      |
+| `headerHeight`        | `60`        | 高度和触发距离，dp，必须为正有限数                |
+| `renderHeader`        | 默认 Header | `(props: RefreshHeaderProps) => ReactNode`        |
+| `onStateChange`       | —           | `idle / pulling / ready / refreshing / finishing` |
+| `onPull`              | —           | `{ offset, progress, headerHeight, isDragging }`  |
+| `className` / `style` | —           | 原生外层样式；Android 滚动组件会注入布局 style    |
 
 `offset` 使用 dp；`progress` 为 offset / headerHeight，可超过 1。
 进度覆盖拖拽与回弹，`isDragging` 区分手指拖拽与程序/回弹移动。
@@ -134,7 +125,9 @@ cd android
 Fabric 检查产物，正式构建由 RN codegen 生成。不手工编辑生成文件。
 
 启动页“进入刷新示例”打开默认列表、短内容、自定义 Header 三个示例。
-完成/失败按钮模拟本地刷新结果，无网络和延时任务。
+默认列表和短内容使用包内默认头；自定义 Header 使用 `assets/animation/loading.json`
+的 Lottie 动画，下拉时跟随进度、刷新时循环，减少动态效果开启时显示静态帧。
+完成/失败按钮模拟本地刷新结果，无网络；示例保留使用方设置的随机自动完成延时。
 行内按钮显示点击次数；“滚到第5条”和“关闭/开启列表滚动”用于检查
 刷新期间的程序化滚动和使用方 `scrollEnabled` 更新。
 
@@ -155,6 +148,25 @@ Node 测试验证 JS 订阅生命周期、最新回调、进度传递、多实�
 `tests/native-acceptance-screen.tsx` 可临时挂到开发路由，检查初始受控刷新、
 空 SectionList、多实例、重复请求、拒绝请求、结束期间重新刷新和刷新中卸载。
 挂载此测试屏幕后，上述 ADB 脚本加 `--lifecycle` 可以执行这些检查。
+在全新测试屏幕上加 `--native-gestures` 可验证阈值前松手、行内触摸取消、
+ready/refreshing 状态序列、进度超过 1、拖拽标记及结束后的零偏移。
+默认示例脚本需要刷新保持至手动完成，运行时应临时移除示例自动完成延时，
+测试结束后恢复。原生验收屏不使用延时任务。
+
+2026-10-10 原生容器替换验证：类型检查、源码 ESLint、4 项 JS 生命周期测试、
+Expo 配置检查与 Android Debug（arm64-v8a、x86_64）编译通过。
+Android 真机（API 29）通过默认/自定义 Header 的双向滑动锁定、行内点击、
+程序化滚动、调用方 scrollEnabled 更新、finishing 期间拖动及解锁；
+手势刷新、完成/失败、短 ScrollView、初始 true、空 SectionList、重复触发、
+结束期间重新刷新、多实例、刷新中卸载和拒绝请求均通过。
+原生手势检查通过阈值前松手、行内触摸取消、ready/refreshing 状态序列、
+进度超过 1、拖拽标记和结束零偏移；禁用时的手势/主动请求与系统关闭动画检查也通过。
+实际 Gradle 依赖图确认无 SmartRefreshLayout。临时验收路由和示例修改已恢复。
+同日修复 Android Header 越界绘制：容器显式裁剪可视区域，Debug 编译通过；
+真机截图确认默认/自定义 Header 在 idle 时隐藏、刷新时展开、结束后完全收起。
+同一次手势中的反向拖动、多指、系统取消及列表到顶后的手势衔接仍待手工设备验收。
+iOS 的 CocoaPods 安装、编译及全部运行场景仍待 macOS 验证。
+下方 2026-10-09 记录属于替换前实现。
 
 2026-10-09 验证记录：Nitrogen、Fabric codegen、`tsc --noEmit`、改动文件
 ESLint 和 4 项 Node 测试通过。Android Debug（arm64-v8a、x86_64）编译通过，
@@ -171,5 +183,5 @@ iOS 编译、运行及对应场景仍待 macOS 验证；Android 结果不代替�
 ## 来源与许可
 
 两个 RN 参考仓库及本包使用 Apache-2.0，见 LICENSE 和 NOTICE。
-SmartRefreshLayout 使用 Apache-2.0，MJRefresh 使用 MIT；通过 Gradle / CocoaPods 接入，
-不复制其整套源码。旧版 React Native ScrollView 实现未复制。
+参考来源保留在 NOTICE 中；当前刷新手势与回弹直接使用 Android/UIKit API，
+不安装或复制两套刷新引擎。旧版 React Native ScrollView 实现未复制。

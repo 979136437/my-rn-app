@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { Pressable, ScrollView, SectionList, Text, View } from "react-native";
 import { NitroRefreshControl } from "../src";
-import type { NitroRefreshControlRef, RefreshState } from "../src";
+import type { NitroRefreshControlRef, RefreshPull, RefreshState } from "../src";
 
 function TestButton({
   name,
@@ -43,6 +43,10 @@ function Control({
   const [reject, setReject] = useState(false);
   const [scrollOffset, setScrollOffset] = useState(0);
   const [clicks, setClicks] = useState(0);
+  const [pull, setPull] = useState<RefreshPull | null>(null);
+  const [transitions, setTransitions] = useState<RefreshState[]>([]);
+  const [peakProgress, setPeakProgress] = useState(0);
+  const [didDrag, setDidDrag] = useState(false);
   const reopen = useRef(false);
   const control = (
     <NitroRefreshControl
@@ -55,10 +59,16 @@ function Control({
       }}
       onStateChange={(value) => {
         setState(value);
+        setTransitions((previous) => [...previous.slice(-15), value]);
         if (value === "finishing" && reopen.current) {
           reopen.current = false;
           setRefreshing(true);
         }
+      }}
+      onPull={(value) => {
+        setPull(value);
+        setPeakProgress((previous) => Math.max(previous, value.progress));
+        if (value.isDragging) setDidDrag(true);
       }}
     />
   );
@@ -68,6 +78,17 @@ function Control({
         {name}:{state}:{String(refreshing)}:requests={requests}:enabled=
         {String(enabled)}:reject={String(reject)}:scroll=
         {scrollOffset.toFixed(0)}:clicks={clicks}
+      </Text>
+      <Text className="text-xs text-slate-600">
+        {name} pull:{pull?.offset.toFixed(0) ?? "0"}:progress=
+        {pull?.progress.toFixed(2) ?? "0.00"}:dragging=
+        {String(pull?.isDragging ?? false)}
+      </Text>
+      <Text className="text-xs text-slate-600">
+        {name} events:{transitions.join(">")}
+      </Text>
+      <Text className="text-xs text-slate-600">
+        {name} peak:{peakProgress.toFixed(2)}:dragged={String(didDrag)}
       </Text>
       <View className="flex-row flex-wrap gap-2">
         <TestButton

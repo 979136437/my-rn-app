@@ -6,5 +6,5 @@ https://github.com/react-native-studio/react-native-SmartRefreshLayout
 react-native-MJRefresh, react-native-studio
 https://github.com/react-native-studio/react-native-MJRefresh
 
-The Android container gesture integration and Header state/progress hooks were adapted for the React Native new architecture.
-Native engine dependencies: SmartRefreshLayout (Apache-2.0), MJRefresh (MIT).
+The original integration referenced their Android gesture and iOS Header lifecycle hooks.
+The current refresh containers use Android and UIKit APIs directly and do not depend on or embed SmartRefreshLayout or MJRefresh engines.

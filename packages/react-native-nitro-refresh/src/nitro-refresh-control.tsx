@@ -11,7 +11,11 @@ import {
 import { Platform, View } from "react-native";
 import { NitroModules } from "react-native-nitro-modules";
 import { DefaultRefreshHeader } from "./default-refresh-header";
-import { DEFAULT_HEADER_HEIGHT } from "./defaults";
+import {
+  DEFAULT_HEADER_HEIGHT,
+  HEADER_HEIGHT_LOWER_BOUND,
+  SUPPORTED_REFRESH_PLATFORMS,
+} from "./defaults";
 import type { RefreshController } from "./refresh-controller.nitro";
 import { createRefreshSession } from "./refresh-session";
 import NativeRefreshView from "./specs/NativeNitroRefreshView";
@@ -41,10 +45,13 @@ export const NitroRefreshControl = forwardRef<
   },
   ref,
 ) {
-  if (Platform.OS !== "ios" && Platform.OS !== "android") {
+  if (!SUPPORTED_REFRESH_PLATFORMS.has(Platform.OS)) {
     throw new Error("NitroRefreshControl supports iOS and Android only.");
   }
-  if (!Number.isFinite(headerHeight) || headerHeight <= 0) {
+  if (
+    !Number.isFinite(headerHeight) ||
+    headerHeight <= HEADER_HEIGHT_LOWER_BOUND
+  ) {
     throw new Error("headerHeight must be a positive finite number.");
   }
   const session = useRef<ReturnType<typeof createRefreshSession> | null>(null);

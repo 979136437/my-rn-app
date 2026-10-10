@@ -173,6 +173,34 @@ class Example:
         assert int(self.lifecycle_status("B")[5]) > 0
         print("PASS: initial true, disabled/empty SectionList, row taps, duplicates, reopen, multiple instances, unmount and rejected request", flush=True)
 
+    def run_native_gestures(self):
+        # Fresh lifecycle screen; test distances are in dp, converted to pixels.
+        self.tap("toggle A")
+        density_text = self.command("shell", "wm", "density").decode()
+        density = int(re.findall(r"density: (\d+)", density_text)[-1]) / 160
+        x, y = self.position("B row tap")
+        self.command("shell", "input", "swipe", x, y, x, y + round(30 * density), SWIPE_DURATION_MS)
+        assert self.lifecycle_status("B")[:3] == ("idle", "false", "0")
+        assert self.lifecycle_status("B")[6] == "0", "intercepted drag must cancel row press"
+        self.command("shell", "input", "swipe", x, y, x, y + round(160 * density), SWIPE_DURATION_MS)
+        assert self.lifecycle_status("B")[:3] == ("refreshing", "true", "1")
+        texts = [node.get("text", "") for node in self.snapshot()]
+        events = next(text for text in texts if text.startswith("B events:"))
+        assert "pulling>finishing>idle" in events, events
+        assert "ready>refreshing" in events, events
+        peak = next(text for text in texts if text.startswith("B peak:"))
+        match = re.fullmatch(r"B peak:([\d.]+):dragged=true", peak)
+        assert match and float(match[1]) > 1, peak
+        self.swipe()
+        assert self.lifecycle_status("B")[5] == "0"
+        self.tap("B stop")
+        assert self.lifecycle_status("B")[:2] == ("idle", "false")
+        pull = next(node.get("text", "") for node in self.snapshot() if node.get("text", "").startswith("B pull:"))
+        assert pull == "B pull:0:progress=0.00:dragging=false", pull
+        self.swipe()
+        assert int(self.lifecycle_status("B")[5]) > 0
+        print("PASS: below threshold, drag cancels row press, ready/release, progress above one, drag flag, lock and final idle/zero", flush=True)
+
 
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8")
@@ -180,10 +208,13 @@ if __name__ == "__main__":
     parser.add_argument("--adb", required=True)
     parser.add_argument("--serial")
     parser.add_argument("--lifecycle", action="store_true", help="Run against native-acceptance-screen.tsx instead of the example")
+    parser.add_argument("--native-gestures", action="store_true", help="Check native drag transitions on a fresh lifecycle screen")
     args = parser.parse_args()
     example = Example(args.adb, args.serial)
     try:
-        if args.lifecycle:
+        if args.native_gestures:
+            example.run_native_gestures()
+        elif args.lifecycle:
             example.run_lifecycle()
         else:
             example.run()

@@ -1,7 +1,7 @@
 {
   "name": "react-native-nitro-refresh",
   "version": "0.1.0",
-  "description": "Controlled native pull-to-refresh with SmartRefreshLayout, MJRefresh and Nitro",
+  "description": "Controlled pull-to-refresh with custom Android and iOS native containers and Nitro",
   "license": "Apache-2.0",
   "private": true,
   "main": "src/index",

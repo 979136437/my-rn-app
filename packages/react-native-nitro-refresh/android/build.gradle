@@ -36,5 +36,4 @@ repositories { google(); mavenCentral() }
 dependencies {
   implementation 'com.facebook.react:react-android'
   implementation project(':react-native-nitro-modules')
-  implementation 'io.github.scwang90:refresh-layout-kernel:2.1.1'
 }

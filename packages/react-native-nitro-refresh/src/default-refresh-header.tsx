@@ -12,9 +12,11 @@ import Animated, {
 import type { RefreshHeaderProps } from "./types";
 import {
   ARROW_ANIMATION_DURATION_MS,
+  DEFAULT_HEADER_ARROW,
   DEFAULT_HEADER_COLOR_CLASS,
   DEFAULT_HEADER_LABELS,
   READY_ARROW_ROTATION_DEG,
+  REFRESH_STATES,
 } from "./defaults";
 
 const AnimatedText = cssInterop(Animated.Text, { className: "style" });
@@ -37,13 +39,17 @@ export function DefaultRefreshHeader({
   labels,
 }: DefaultRefreshHeaderProps) {
   const rotation = useSharedValue(0);
-  const busy = state === "refreshing" || state === "finishing";
+  const busy =
+    state === REFRESH_STATES.refreshing || state === REFRESH_STATES.finishing;
   useEffect(() => {
     rotation.set(
-      withTiming(state === "ready" ? READY_ARROW_ROTATION_DEG : 0, {
-        duration: ARROW_ANIMATION_DURATION_MS,
-        reduceMotion: ReduceMotion.System,
-      }),
+      withTiming(
+        state === REFRESH_STATES.ready ? READY_ARROW_ROTATION_DEG : 0,
+        {
+          duration: ARROW_ANIMATION_DURATION_MS,
+          reduceMotion: ReduceMotion.System,
+        },
+      ),
     );
     return () => cancelAnimation(rotation);
   }, [state, rotation]);
@@ -52,7 +58,7 @@ export function DefaultRefreshHeader({
   }));
   const text = busy
     ? (labels?.refreshing ?? DEFAULT_HEADER_LABELS.refreshing)
-    : state === "ready"
+    : state === REFRESH_STATES.ready
       ? (labels?.ready ?? DEFAULT_HEADER_LABELS.ready)
       : (labels?.pulling ?? DEFAULT_HEADER_LABELS.pulling);
 
@@ -81,7 +87,7 @@ export function DefaultRefreshHeader({
           style={arrowStyle}
           accessible={false}
         >
-          ↓
+          {DEFAULT_HEADER_ARROW}
         </AnimatedText>
       )}
       <Text

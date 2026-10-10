@@ -1,231 +1,300 @@
 package com.margelo.nitro.refresh
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.ValueAnimator
 import android.content.Context
-import android.graphics.Matrix
+import android.graphics.Canvas
+import android.os.Build
+import android.provider.Settings
 import android.view.MotionEvent
 import android.view.View
-import android.view.ViewGroup
 import android.view.ViewConfiguration
+import android.view.ViewGroup
+import android.view.animation.DecelerateInterpolator
 import android.widget.FrameLayout
 import android.widget.ScrollView
 import com.facebook.react.uimanager.events.NativeGestureUtil
 import com.facebook.react.views.scroll.ReactScrollView
-import com.scwang.smart.refresh.layout.SmartRefreshLayout
-import com.scwang.smart.refresh.layout.api.RefreshHeader
-import com.scwang.smart.refresh.layout.api.RefreshLayout
-import com.scwang.smart.refresh.layout.constant.RefreshState as SmartState
-import com.scwang.smart.refresh.layout.simple.SimpleComponent
 import kotlin.math.abs
 
 internal class NitroRefreshView(context: Context) : FrameLayout(context), RefreshTarget {
   val reactChildren = mutableListOf<View>()
-  private val density = resources.displayMetrics.density.toDouble()
+  private val density = resources.displayMetrics.density
+  private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
   private var controllerId = ""
   private var active = false
   private var finishing = false
-  private var notifyNext = true
-  private var layoutPosted = false
   private var disposed = false
-  private var fingerDown = false
+  private var layoutPosted = false
   private var scrollLocked = false
-  private var interceptingScroll = false
-  private var touchStartY = 0f
-  private var pullOffset = 0.0
-  private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
-  private val smart = object : SmartRefreshLayout(context) {
-    private var nativeGesture = false
-    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-      if (event.actionMasked == MotionEvent.ACTION_DOWN) fingerDown = true
-      if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
-        fingerDown = false
-        controller()?.emitPull(pullOffset, headerHeight.toDouble(), false)
-      }
-      if (scrollLocked) {
-        // Keep clicks, but bypass Smart's drag/animation interruption logic.
-        val content = mRefreshContent?.view ?: return false
-        val localEvent = MotionEvent.obtain(event)
-        try {
-          localEvent.offsetLocation((scrollX - content.left).toFloat(), (scrollY - content.top).toFloat())
-          if (!content.matrix.isIdentity) {
-            val inverse = Matrix()
-            if (content.matrix.invert(inverse)) localEvent.transform(inverse)
-          }
-          return content.dispatchTouchEvent(localEvent)
-        } finally {
-          localEvent.recycle()
-        }
-      }
-      return super.dispatchTouchEvent(event)
-    }
-    override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
-      val intercepted = super.onInterceptTouchEvent(event)
-      if (intercepted && !nativeGesture && event.actionMasked == MotionEvent.ACTION_MOVE) {
-        NativeGestureUtil.notifyNativeGestureStarted(this, event)
-        nativeGesture = true
-      }
-      return intercepted
-    }
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-      val handled = super.onTouchEvent(event)
-      if (nativeGesture && (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL)) {
-        NativeGestureUtil.notifyNativeGestureEnded(this, event)
-        nativeGesture = false
-      }
-      return handled
-    }
-  }
-  private val header = object : SimpleComponent(context, null, 0), RefreshHeader {
-    override fun onMoving(isDragging: Boolean, percent: Float, offset: Int, height: Int, maxDragHeight: Int) {
-      pullOffset = offset.coerceAtLeast(0) / density
-      controller()?.emitPull(pullOffset, headerHeight.toDouble(), isDragging && fingerDown && !scrollLocked)
-    }
-    override fun onStateChanged(layout: RefreshLayout, oldState: SmartState, newState: SmartState) {
-      if (newState == SmartState.RefreshReleased || newState == SmartState.Refreshing) setScrollLocked(true)
-      val state = when (newState) {
-        SmartState.PullDownToRefresh -> RefreshState.PULLING
-        SmartState.ReleaseToRefresh -> RefreshState.READY
-        SmartState.RefreshReleased, SmartState.Refreshing -> RefreshState.REFRESHING
-        SmartState.RefreshFinish -> RefreshState.FINISHING
-        SmartState.PullDownCanceled -> RefreshState.FINISHING
-        else -> RefreshState.IDLE
-      }
-      if (newState == SmartState.None) {
-        active = false
-        finishing = false
-        notifyNext = true
-        setScrollLocked(false)
-        smart.setEnableRefresh(refreshEnabled && controllerId.isNotEmpty())
-        pullOffset = 0.0
-        controller()?.emitPull(pullOffset, headerHeight.toDouble(), false)
-      }
-      controller()?.emitState(state)
-    }
-    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
-      for (i in 0 until childCount) getChildAt(i).layout(0, 0, width, height)
-    }
-    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-      super.onMeasure(widthMeasureSpec, heightMeasureSpec)
-      for (i in 0 until childCount) {
-        getChildAt(i).measure(
-          MeasureSpec.makeMeasureSpec(measuredWidth, MeasureSpec.EXACTLY),
-          MeasureSpec.makeMeasureSpec(measuredHeight, MeasureSpec.EXACTLY)
-        )
-      }
-    }
-  }
+  private var fingerDown = false
+  private var dragging = false
+  private var nativeGesture = false
+  private var pointerId = MotionEvent.INVALID_POINTER_ID
+  private var anchorX = 0f
+  private var anchorY = 0f
+  private var lastY = 0f
+  private var dragOriginY = 0f
+  private var dragOriginOffset = 0f
+  private var offsetPx = 0f
+  private var animator: ValueAnimator? = null
+  private var animationGeneration = 0
+  private val scroll: ScrollView? get() = reactChildren.getOrNull(1) as? ScrollView
+  private val headerPx: Float get() = headerHeight * density
+
   var refreshEnabled = true
     set(value) {
       field = value
-      smart.setEnableRefresh((value || active) && controllerId.isNotEmpty())
-      smart.invalidate()
+      if (!value && !active && offsetPx > 0) settleIdle()
     }
   var headerHeight = DEFAULT_HEADER_HEIGHT_DP
     set(value) {
       field = value
-      smart.setHeaderHeight(value)
       requestLayout()
+      if (active && !finishing) animateOffset(headerPx) {}
+      else publishPull()
     }
 
-  init {
-    smart.setEnableLoadMore(false)
-    smart.setEnableAutoLoadMore(false)
-    smart.setEnableRefresh(false)
-    smart.setEnableOverScrollBounce(false)
-    smart.setHeaderTriggerRate(REFRESH_TRIGGER_RATE)
-    smart.setRefreshHeader(header, LayoutParams.MATCH_PARENT, (headerHeight * density).toInt())
-    smart.setRefreshContent(FrameLayout(context))
-    smart.setOnRefreshListener {
-      if (disposed || !isAttachedToWindow || finishing || smart.state != SmartState.Refreshing) return@setOnRefreshListener
-      active = true
-      pullOffset = headerHeight.toDouble()
-      controller()?.emitPull(pullOffset, headerHeight.toDouble(), false)
-      val notify = notifyNext
-      notifyNext = true
-      controller()?.refreshStarted(notify)
-    }
-    addView(smart, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+  init { clipChildren = true }
+
+  override fun dispatchDraw(canvas: Canvas) {
+    // The header is laid out above this viewport. clipChildren only clips each
+    // child's own bounds; clip the container too so it cannot cover sibling UI.
+    val saveCount = canvas.save()
+    canvas.clipRect(0, 0, width, height)
+    super.dispatchDraw(canvas)
+    canvas.restoreToCount(saveCount)
   }
 
   private fun controller() = RefreshRegistry.find(controllerId)
+
+  private fun publishPull() {
+    controller()?.emitPull((offsetPx / density).toDouble(), headerHeight.toDouble(), dragging && fingerDown && !scrollLocked)
+  }
+
+  private fun setOffset(value: Float) {
+    offsetPx = value.coerceAtLeast(0f)
+    for (child in reactChildren) child.translationY = offsetPx
+    publishPull()
+  }
+
+  private fun cancelAnimation() {
+    animationGeneration++
+    val old = animator
+    animator = null
+    old?.cancel()
+  }
+
+  private fun animateOffset(target: Float, complete: () -> Unit) {
+    cancelAnimation()
+    val generation = animationGeneration
+    val animationsEnabled = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) ValueAnimator.areAnimatorsEnabled()
+      else Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) > 0f
+    if (!animationsEnabled || offsetPx == target) {
+      setOffset(target)
+      complete()
+      return
+    }
+    animator = ValueAnimator.ofFloat(offsetPx, target).apply {
+      duration = REFRESH_OPEN_DURATION_MS.toLong()
+      interpolator = DecelerateInterpolator()
+      addUpdateListener { if (generation == animationGeneration && !disposed) setOffset(it.animatedValue as Float) }
+      addListener(object : AnimatorListenerAdapter() {
+        override fun onAnimationEnd(animation: Animator) {
+          if (generation != animationGeneration || disposed) return
+          animator = null
+          complete()
+        }
+      })
+      start()
+    }
+  }
 
   private fun setScrollLocked(locked: Boolean) {
     if (scrollLocked == locked) return
     scrollLocked = locked
     if (locked) {
-      (reactChildren.getOrNull(1) as? ReactScrollView)?.abortAnimation()
-      // A child may have disallowed interception before refreshing started.
+      (scroll as? ReactScrollView)?.abortAnimation()
       super.requestDisallowInterceptTouchEvent(false)
     }
   }
 
   override fun requestDisallowInterceptTouchEvent(disallowIntercept: Boolean) {
-    super.requestDisallowInterceptTouchEvent(disallowIntercept && !scrollLocked)
+    // Observe top-of-list transitions even when RN's scroll view owns the drag.
+    // Direction and touch slop below keep taps and horizontal children intact.
+    super.requestDisallowInterceptTouchEvent(disallowIntercept && !scrollLocked && !refreshEnabled)
+  }
+
+  override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+    when (event.actionMasked) {
+      MotionEvent.ACTION_DOWN -> {
+        fingerDown = true
+        pointerId = event.getPointerId(0)
+        anchorX = event.x
+        anchorY = event.y
+        lastY = event.y
+        dragging = false
+      }
+      MotionEvent.ACTION_POINTER_UP -> {
+        val leaving = event.actionIndex
+        if (event.getPointerId(leaving) == pointerId) {
+          val next = if (leaving == 0) 1 else 0
+          if (next < event.pointerCount) {
+            pointerId = event.getPointerId(next)
+            anchorX = event.getX(next)
+            anchorY = event.getY(next)
+            lastY = anchorY
+            dragOriginY = anchorY
+            dragOriginOffset = offsetPx
+          }
+        }
+      }
+    }
+    val handled = super.dispatchTouchEvent(event)
+    if (event.actionMasked == MotionEvent.ACTION_MOVE && !dragging && !scrollLocked) {
+      val index = event.findPointerIndex(pointerId)
+      if (index >= 0) {
+        // A child can reach its top while processing this very MOVE.
+        if (scroll?.canScrollVertically(-1) == true) anchorY = event.getY(index)
+        lastY = event.getY(index)
+      }
+    }
+    if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
+      fingerDown = false
+      dragging = false
+      pointerId = MotionEvent.INVALID_POINTER_ID
+      if (nativeGesture) {
+        NativeGestureUtil.notifyNativeGestureEnded(this, event)
+        nativeGesture = false
+      }
+      publishPull()
+    }
+    return handled
   }
 
   override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
-    if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-      touchStartY = event.y
-      interceptingScroll = false
+    if (event.actionMasked != MotionEvent.ACTION_MOVE) return false
+    val index = event.findPointerIndex(pointerId)
+    if (index < 0) return false
+    val x = event.getX(index)
+    val y = event.getY(index)
+    val dy = y - anchorY
+    val dx = x - anchorX
+    if (abs(dy) <= touchSlop || abs(dy) <= abs(dx)) return false
+    val content = scroll ?: return false
+    val canPull = refreshEnabled && !active && !finishing && controllerId.isNotEmpty() &&
+      (content as? ReactScrollView)?.scrollEnabled != false && !content.canScrollVertically(-1) && dy > 0
+    if (!scrollLocked && !canPull) return false
+    if (canPull && !scrollLocked) {
+      cancelAnimation()
+      dragging = true
+      dragOriginY = lastY
+      dragOriginOffset = offsetPx
     }
-    if (scrollLocked && event.actionMasked == MotionEvent.ACTION_MOVE) {
-      val deltaY = abs(event.y - touchStartY)
-      if (deltaY >= touchSlop) {
-        interceptingScroll = true
-        NativeGestureUtil.notifyNativeGestureStarted(this, event)
-        return true // ViewGroup sends CANCEL to the previous child touch target.
-      }
-    }
-    return super.onInterceptTouchEvent(event)
+    nativeGesture = true
+    NativeGestureUtil.notifyNativeGestureStarted(this, event)
+    return true // ViewGroup delivers ACTION_CANCEL to the child's current target.
   }
 
   override fun onTouchEvent(event: MotionEvent): Boolean {
-    if (!interceptingScroll) return super.onTouchEvent(event)
+    if (!nativeGesture) return false
+    val index = event.findPointerIndex(pointerId)
+    if (event.actionMasked == MotionEvent.ACTION_MOVE && index >= 0 && dragging && !scrollLocked) {
+      val raw = dragOriginOffset + (event.getY(index) - dragOriginY) * REFRESH_DRAG_DAMPING
+      setOffset(raw.coerceIn(0f, headerPx * REFRESH_MAX_DRAG_RATE))
+      controller()?.emitState(if (offsetPx >= headerPx) RefreshState.READY else RefreshState.PULLING)
+    }
     if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
-      NativeGestureUtil.notifyNativeGestureEnded(this, event)
-      interceptingScroll = false
+      val shouldRefresh = dragging && !scrollLocked && refreshEnabled &&
+        event.actionMasked == MotionEvent.ACTION_UP && offsetPx >= headerPx
+      dragging = false
+      fingerDown = false
+      if (shouldRefresh) startRefresh(true)
+      else if (!active && !finishing && offsetPx > 0) settleIdle()
+      else if (!active && !finishing) controller()?.emitState(RefreshState.IDLE)
     }
     return true
+  }
+
+  override fun startRefresh(notify: Boolean) {
+    if (disposed || active || finishing || scroll == null || (notify && !refreshEnabled)) return
+    if (notify && !dragging && offsetPx == 0f) scroll?.scrollTo(scroll!!.scrollX, 0)
+    active = true
+    dragging = false
+    setScrollLocked(true)
+    // Notify before animation: controlled false can immediately reject this request.
+    controller()?.refreshStarted(notify)
+    if (active && !finishing) animateOffset(headerPx) {}
+  }
+
+  private fun settleIdle() {
+    if (finishing || disposed) return
+    finishing = true
+    dragging = false
+    controller()?.emitState(RefreshState.FINISHING)
+    animateOffset(0f) {
+      active = false
+      finishing = false
+      setScrollLocked(false)
+      controller()?.emitState(RefreshState.IDLE)
+    }
+  }
+
+  override fun finishRefresh() {
+    if (active) settleIdle()
+  }
+
+  private fun reset() {
+    cancelAnimation()
+    active = false
+    finishing = false
+    dragging = false
+    fingerDown = false
+    nativeGesture = false
+    pointerId = MotionEvent.INVALID_POINTER_ID
+    setScrollLocked(false)
+    offsetPx = 0f
+    for (child in reactChildren) child.translationY = 0f
   }
 
   fun setControllerId(id: String) {
     if (id == controllerId) return
     controller()?.unbind(this)
-    finishRefresh()
-    setScrollLocked(false)
+    reset()
     controllerId = id
-    smart.setEnableRefresh(refreshEnabled && id.isNotEmpty())
-    // Smart caches drawChild while disabled; translation alone does not redraw it.
-    smart.invalidate()
     bindWhenReady()
   }
 
   fun mount(child: View, index: Int) {
     check(reactChildren.size < 2) { "NitroRefreshControl expects a header and one vertical scroll view" }
+    if (index == 1) check(child is ScrollView) { "NitroRefreshControl supports vertical, non-inverted RN scroll views" }
     reactChildren.add(index, child)
-    if (index == 0) header.addView(child, ViewGroup.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
-    else {
-      check(child is ScrollView) { "NitroRefreshControl supports vertical, non-inverted RN scroll views" }
-      smart.setRefreshContent(child)
-    }
+    addView(child, index, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     requestLayout()
   }
 
   fun unmount(index: Int) {
-    val child = reactChildren.removeAt(index)
     controller()?.unbind(this)
-    finishRefresh()
-    setScrollLocked(false)
-    (child.parent as? ViewGroup)?.removeView(child)
+    reset()
+    removeView(reactChildren.removeAt(index))
   }
 
   private fun bindWhenReady() {
-    if (!disposed && isAttachedToWindow && reactChildren.size == 2 && width > 0 && height > 0) {
-      controller()?.bind(this)
+    if (!disposed && isAttachedToWindow && reactChildren.size == 2 && width > 0 && height > 0) controller()?.bind(this)
+  }
+
+  override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+    super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+    for ((index, child) in reactChildren.withIndex()) {
+      child.measure(MeasureSpec.makeMeasureSpec(measuredWidth, MeasureSpec.EXACTLY),
+        MeasureSpec.makeMeasureSpec(if (index == 0) headerPx.toInt() else measuredHeight, MeasureSpec.EXACTLY))
     }
   }
 
   override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
-    smart.layout(0, 0, width, height)
+    reactChildren.getOrNull(0)?.layout(0, -headerPx.toInt(), width, 0)
+    scroll?.layout(0, 0, width, height)
     bindWhenReady()
   }
 
@@ -242,50 +311,7 @@ internal class NitroRefreshView(context: Context) : FrameLayout(context), Refres
     }
   }
 
-  override fun onAttachedToWindow() {
-    super.onAttachedToWindow()
-    requestLayout()
-  }
-
-  override fun onDetachedFromWindow() {
-    controller()?.unbind(this)
-    finishRefresh()
-    setScrollLocked(false)
-    super.onDetachedFromWindow()
-  }
-
-  override fun startRefresh(notify: Boolean) {
-    if (disposed || active || finishing || (notify && !refreshEnabled)) return
-    val scroll = reactChildren.getOrNull(1) as? ScrollView ?: return
-    if (notify) {
-      scroll.scrollTo(scroll.scrollX, 0)
-    }
-    active = true
-    setScrollLocked(true)
-    notifyNext = notify
-    smart.setEnableRefresh(true)
-    smart.invalidate()
-    if (!smart.autoRefresh(0, REFRESH_OPEN_DURATION_MS, REFRESH_TRIGGER_RATE, !notify)) {
-      active = false
-      setScrollLocked(false)
-      notifyNext = true
-      smart.setEnableRefresh(refreshEnabled && controllerId.isNotEmpty())
-    } else if (!notify) controller()?.refreshStarted(false)
-  }
-
-  override fun finishRefresh() {
-    if (!active && !smart.state.isOpening) return
-    finishing = true
-    controller()?.emitState(RefreshState.FINISHING)
-    smart.finishRefresh(0)
-  }
-
-  fun release() {
-    controller()?.unbind(this)
-    disposed = true
-    setScrollLocked(false)
-    smart.setOnRefreshListener(null)
-    smart.closeHeaderOrFooter()
-    controllerId = ""
-  }
+  override fun onAttachedToWindow() { super.onAttachedToWindow(); requestLayout() }
+  override fun onDetachedFromWindow() { controller()?.unbind(this); reset(); super.onDetachedFromWindow() }
+  fun release() { controller()?.unbind(this); disposed = true; reset(); controllerId = "" }
 }
