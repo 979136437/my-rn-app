@@ -6,6 +6,11 @@ import { createMMKV } from "react-native-mmkv";
 // 定义默认常量
 const STORAGE_THRESHOLD = 1024 * 1024 * 1; // 1MB
 const STORAGE_KEYS_KEY = "alova_cache_keys_v1"; // 加上版本号避免冲突
+const UNKNOWN_STORAGE_LIMIT = 0;
+const MIN_REQUEST_DELAY_MS = 0;
+const EMPTY_CACHE_VALUE = "";
+const FUNCTION_TYPE = "function";
+const CACHE_ACTION = { add: "add", remove: "remove" } as const;
 
 // 定义更严谨的类型
 interface StorageAdapter {
@@ -21,6 +26,12 @@ interface CacheMiddlewareOptions {
   limit?: number; // 预留空间（字节）；存储上限未知时作为清理阈值
   errorClear?: boolean; // 请求失败是否清除缓存
   store?: StorageAdapter;
+}
+
+function isPrefixFactory(
+  value: CacheMiddlewareOptions["prefix"],
+): value is (method: Method) => string | Promise<string> {
+  return typeof value === FUNCTION_TYPE;
 }
 
 const store = createMMKV({
@@ -44,7 +55,8 @@ export function cacheMiddleware(options: CacheMiddlewareOptions = {}): any {
     remove: (key) => store.remove(key),
     info: () => ({
       currentSize: store.byteSize,
-      limitSize: STORAGE_THRESHOLD * 100,
+      // MMKV exposes its occupied size, but no storage capacity limit.
+      limitSize: UNKNOWN_STORAGE_LIMIT,
     }),
   };
 
@@ -55,11 +67,14 @@ export function cacheMiddleware(options: CacheMiddlewareOptions = {}): any {
   } = options;
 
   // 辅助函数：管理 Keys (LRU 核心)
-  const updateKeys = (currentKey: string, action: "add" | "remove") => {
+  const updateKeys = (
+    currentKey: string,
+    action: (typeof CACHE_ACTION)[keyof typeof CACHE_ACTION],
+  ) => {
     try {
       let keys: string[] = adapter.get(STORAGE_KEYS_KEY) || [];
 
-      if (action === "remove") {
+      if (action === CACHE_ACTION.remove) {
         keys = keys.filter((k) => k !== currentKey);
       } else {
         // LRU: 先移除旧的（如果存在），再添加到末尾
@@ -81,7 +96,9 @@ export function cacheMiddleware(options: CacheMiddlewareOptions = {}): any {
       const { currentSize, limitSize } = adapter.info();
       // 如果没有 limitSize (Web 端可能没有)，则只依赖 limit
       const maxAvailable =
-        limitSize > 0 ? Math.max(0, limitSize - limit) : limit;
+        limitSize > UNKNOWN_STORAGE_LIMIT
+          ? Math.max(0, limitSize - limit)
+          : limit;
       // 如果当前占用空间已经逼近限制 (保留 limit 大小的缓冲)
       if (currentSize > maxAvailable) {
         const keys: string[] = adapter.get(STORAGE_KEYS_KEY) || [];
@@ -106,7 +123,7 @@ export function cacheMiddleware(options: CacheMiddlewareOptions = {}): any {
 
     // 2. 计算 Key (支持异步前缀)
     let prefix = "";
-    if (typeof options.prefix === "function") {
+    if (isPrefixFactory(options.prefix)) {
       prefix = await options.prefix(method);
     } else if (options.prefix) {
       prefix = options.prefix;
@@ -116,16 +133,16 @@ export function cacheMiddleware(options: CacheMiddlewareOptions = {}): any {
     // 3. 读取缓存 (Hit Cache)
     const cache = adapter.get(key);
 
-    if (cache !== undefined && cache !== null && cache !== "") {
+    if (cache !== undefined && cache !== null && cache !== EMPTY_CACHE_VALUE) {
       // 命中缓存：立即更新 UI
       proxyStates.data.v = cache;
       // LRU 优化：读取也算"活跃"，更新 Key 位置
-      updateKeys(key, "add");
+      updateKeys(key, CACHE_ACTION.add);
     }
 
     try {
       // 4. 发起真实请求
-      if (delayTime > 0) await delay(delayTime);
+      if (delayTime > MIN_REQUEST_DELAY_MS) await delay(delayTime);
       const res = await next();
 
       // 5. 写入缓存 (Write Cache)
@@ -134,7 +151,7 @@ export function cacheMiddleware(options: CacheMiddlewareOptions = {}): any {
 
       try {
         adapter.set(key, res);
-        updateKeys(key, "add");
+        updateKeys(key, CACHE_ACTION.add);
       } catch (e) {
         // 处理 Quota Exceeded 错误 (尤其是 LocalStorage 5MB 限制)
         console.error("Storage Quota Exceeded, clearing old cache...", e);
@@ -147,11 +164,11 @@ export function cacheMiddleware(options: CacheMiddlewareOptions = {}): any {
       // 6. 错误回退
       if (errorClear) {
         adapter.remove(key);
-        updateKeys(key, "remove");
+        updateKeys(key, CACHE_ACTION.remove);
         // 恢复初始数据，避免 UI 显示脏数据
         const { initialData } = ctx.config;
         proxyStates.data.v =
-          typeof initialData === "function" ? initialData() : initialData;
+          typeof initialData === FUNCTION_TYPE ? initialData() : initialData;
       }
       throw err;
     }

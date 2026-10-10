@@ -1,6 +1,9 @@
 import { axiosRequestAdapter } from "@alova/adapter-axios";
 import { createAlova } from "alova";
 import reactHook from "alova/react";
+import { HttpStatusCode } from "axios";
+
+const API_ERROR_CODE = 0;
 
 const alova = createAlova({
   baseURL: `https://admapi.happyvalley.link`,
@@ -20,13 +23,13 @@ const alova = createAlova({
       if (method?.meta?.NoHandle) {
         return res;
       }
-      if (res.status !== 200) {
+      if (res.status !== HttpStatusCode.Ok) {
         throw new Error(res.statusText ?? "服务错误，请稍后重试.");
       }
       const result = res.data;
       const code = result.code ?? result.status;
 
-      if (code === 0) {
+      if (code === API_ERROR_CODE) {
         throw new Error(result.msg ?? "服务错误，请稍后重试..");
       }
       return result.data;
