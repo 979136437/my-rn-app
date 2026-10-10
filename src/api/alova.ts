@@ -34,7 +34,6 @@ const alova = createAlova({
       }
       return result.data;
     },
-    async onError(res, method) {},
   },
 });
 

@@ -118,7 +118,10 @@ export function cacheMiddleware(options: CacheMiddlewareOptions = {}): any {
     }
   };
 
+  let latestRequest: symbol | undefined;
   const middleware: AlovaFrontMiddleware<any> = async (ctx, next) => {
+    const request = Symbol();
+    latestRequest = request;
     const { method, proxyStates } = ctx;
 
     // 2. 计算 Key (支持异步前缀)
@@ -133,7 +136,12 @@ export function cacheMiddleware(options: CacheMiddlewareOptions = {}): any {
     // 3. 读取缓存 (Hit Cache)
     const cache = adapter.get(key);
 
-    if (cache !== undefined && cache !== null && cache !== EMPTY_CACHE_VALUE) {
+    if (
+      request === latestRequest &&
+      cache !== undefined &&
+      cache !== null &&
+      cache !== EMPTY_CACHE_VALUE
+    ) {
       // 命中缓存：立即更新 UI
       proxyStates.data.v = cache;
       // LRU 优化：读取也算"活跃"，更新 Key 位置
@@ -153,16 +161,14 @@ export function cacheMiddleware(options: CacheMiddlewareOptions = {}): any {
         adapter.set(key, res);
         updateKeys(key, CACHE_ACTION.add);
       } catch (e) {
-        // 处理 Quota Exceeded 错误 (尤其是 LocalStorage 5MB 限制)
-        console.error("Storage Quota Exceeded, clearing old cache...", e);
-        adapter.set(STORAGE_KEYS_KEY, []); // 极端情况：清空索引
-        // 这里可以选择不做任何事，或者清空所有缓存重试，避免崩坏
+        // Keep the existing index so cached entries remain discoverable.
+        console.error("Cache Write Failed:", e);
       }
 
       return res;
     } catch (err) {
       // 6. 错误回退
-      if (errorClear) {
+      if (errorClear && request === latestRequest) {
         adapter.remove(key);
         updateKeys(key, CACHE_ACTION.remove);
         // 恢复初始数据，避免 UI 显示脏数据

@@ -1,5 +1,6 @@
 import { cacheMiddleware, multipleMiddleware } from "@/middleware/http";
 import { useWatcher } from "alova/client";
+import { useMemo } from "react";
 import http from "./alova";
 
 export interface ScenicDetail {
@@ -61,6 +62,7 @@ export interface ScenicDetail {
 }
 
 export function useGetScenicDetail(id: number) {
+  const middleware = useMemo(() => multipleMiddleware([cacheMiddleware()]), []);
   return useWatcher(
     () =>
       http.Get<ScenicDetail>(`/api/scenic/getScenicDetail`, {
@@ -70,7 +72,7 @@ export function useGetScenicDetail(id: number) {
       }),
     [id],
     {
-      middleware: multipleMiddleware([cacheMiddleware()]),
+      middleware,
       initialData: {},
       immediate: true,
     },
