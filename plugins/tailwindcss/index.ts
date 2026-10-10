@@ -1,2 +1,2 @@
-export * from './common'
-export * from './variant'
+export * from "./common";
+export * from "./variant";
