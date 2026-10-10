@@ -1,6 +1,8 @@
 packages:
   - "packages/*"
 catalog:
+  '@react-native/codegen': 0.86.3
+  nitrogen: 0.37.1
   cn: ^0.3.0
   react-native-reanimated: 4.5.1
   react-native-worklets: 0.10.1

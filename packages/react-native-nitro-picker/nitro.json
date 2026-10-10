@@ -1,0 +1,23 @@
+{
+  "$schema": "https://nitro.margelo.com/nitro.schema.json",
+  "cxxNamespace": ["picker"],
+  "ios": { "iosModuleName": "NitroPicker" },
+  "android": {
+    "androidNamespace": ["picker"],
+    "androidCxxLibName": "NitroPicker"
+  },
+  "autolinking": {
+    "PickerController": {
+      "ios": {
+        "language": "swift",
+        "implementationClassName": "HybridPickerController"
+      },
+      "android": {
+        "language": "kotlin",
+        "implementationClassName": "HybridPickerController"
+      }
+    }
+  },
+  "ignorePaths": ["**/node_modules"],
+  "gitAttributesGeneratedFlag": false
+}

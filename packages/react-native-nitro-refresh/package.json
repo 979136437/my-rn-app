@@ -19,8 +19,8 @@
     "react-native-worklets": "catalog:peer"
   },
   "devDependencies": {
-    "@react-native/codegen": "0.86.3",
-    "nitrogen": "0.37.1"
+    "@react-native/codegen": "catalog:",
+    "nitrogen": "catalog:"
   },
   "scripts": {
     "nitrogen": "nitrogen",

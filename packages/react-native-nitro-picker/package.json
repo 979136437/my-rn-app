@@ -1,0 +1,43 @@
+{
+  "name": "react-native-nitro-picker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Controlled native wheel containers with React content and Reanimated perspective",
+  "license": "Apache-2.0",
+  "main": "src/index",
+  "types": "src/index.ts",
+  "react-native": "src/index",
+  "dependencies": {
+    "cn": "catalog:"
+  },
+  "peerDependencies": {
+    "expo-linear-gradient": "catalog:peer",
+    "nativewind": "catalog:peer",
+    "react": "catalog:peer",
+    "react-native": "catalog:peer",
+    "react-native-nitro-modules": "catalog:peer",
+    "react-native-reanimated": "catalog:peer",
+    "react-native-worklets": "catalog:peer"
+  },
+  "devDependencies": {
+    "@react-native/codegen": "catalog:",
+    "nitrogen": "catalog:"
+  },
+  "scripts": {
+    "nitrogen": "nitrogen",
+    "codegen": "node scripts/codegen.cjs"
+  },
+  "codegenConfig": {
+    "name": "NitroPickerSpec",
+    "type": "components",
+    "jsSrcsDir": "src/specs",
+    "android": {
+      "javaPackageName": "com.margelo.nitro.picker"
+    },
+    "ios": {
+      "componentProvider": {
+        "NitroPickerColumn": "NitroPickerColumn"
+      }
+    }
+  }
+}

@@ -44,6 +44,7 @@
     "react-native-keyboard-controller": "1.21.9",
     "react-native-mmkv": "^4.3.2",
     "react-native-nitro-modules": "0.37.1",
+    "react-native-nitro-picker": "workspace:*",
     "react-native-nitro-refresh": "workspace:*",
     "react-native-permissions": "^5.6.2",
     "react-native-reanimated": "catalog:",

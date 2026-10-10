@@ -1,0 +1,40 @@
+apply plugin: 'com.android.library'
+apply plugin: 'org.jetbrains.kotlin.android'
+apply plugin: 'com.facebook.react'
+apply from: '../nitrogen/generated/android/NitroPicker+autolinking.gradle'
+
+react {
+  libraryName = 'NitroPickerSpec'
+  codegenJavaPackageName = 'com.margelo.nitro.picker'
+}
+
+android {
+  namespace 'com.margelo.nitro.picker'
+  compileSdk rootProject.ext.compileSdkVersion
+  ndkVersion rootProject.ext.ndkVersion
+  defaultConfig {
+    minSdk rootProject.ext.minSdkVersion
+    targetSdk rootProject.ext.targetSdkVersion
+    ndk {
+      abiFilters(*((rootProject.findProperty('reactNativeArchitectures') ?: 'armeabi-v7a,arm64-v8a,x86,x86_64').split(',')))
+    }
+    externalNativeBuild {
+      cmake {
+        arguments '-DANDROID_STL=c++_shared', '-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON'
+        cppFlags '-frtti -fexceptions'
+      }
+    }
+  }
+  externalNativeBuild { cmake { path 'CMakeLists.txt' } }
+  buildFeatures { prefab true }
+  packagingOptions {
+    excludes += ['**/libNitroModules.so', '**/libc++_shared.so', '**/libfbjni.so', '**/libjsi.so', '**/libreactnative.so']
+  }
+}
+
+repositories { google(); mavenCentral() }
+dependencies {
+  implementation 'com.facebook.react:react-android'
+  implementation project(':react-native-nitro-modules')
+  implementation 'androidx.recyclerview:recyclerview:1.4.0'
+}

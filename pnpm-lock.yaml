@@ -6,9 +6,15 @@ settings:
 
 catalogs:
   default:
+    '@react-native/codegen':
+      specifier: 0.86.3
+      version: 0.86.3
     cn:
       specifier: ^0.3.0
       version: 0.3.0
+    nitrogen:
+      specifier: 0.37.1
+      version: 0.37.1
     react-native-reanimated:
       specifier: 4.5.1
       version: 4.5.1
@@ -16,6 +22,9 @@ catalogs:
       specifier: 0.10.1
       version: 0.10.1
   peer:
+    expo-linear-gradient:
+      specifier: ~57.0.2
+      version: 57.0.2
     nativewind:
       specifier: ^4.2.7
       version: 4.2.7
@@ -159,6 +168,9 @@ importers:
       react-native-nitro-modules:
         specifier: 0.37.1
         version: 0.37.1(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
+      react-native-nitro-picker:
+        specifier: workspace:*
+        version: link:packages/react-native-nitro-picker
       react-native-nitro-refresh:
         specifier: workspace:*
         version: link:packages/react-native-nitro-refresh
@@ -221,6 +233,40 @@ importers:
         specifier: ~6.0.3
         version: 6.0.3
 
+  packages/react-native-nitro-picker:
+    dependencies:
+      cn:
+        specifier: 'catalog:'
+        version: 0.3.0
+      expo-linear-gradient:
+        specifier: catalog:peer
+        version: 57.0.2(expo@57.0.23)(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
+      nativewind:
+        specifier: catalog:peer
+        version: 4.2.7(3033981e764c721130d8a3ef3f9e4281)
+      react:
+        specifier: catalog:peer
+        version: 19.2.3
+      react-native:
+        specifier: catalog:peer
+        version: 0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3)
+      react-native-nitro-modules:
+        specifier: catalog:peer
+        version: 0.37.1(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
+      react-native-reanimated:
+        specifier: catalog:peer
+        version: 4.5.1(react-native-worklets@0.10.1(@babel/core@7.29.7)(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3))(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
+      react-native-worklets:
+        specifier: catalog:peer
+        version: 0.10.1(@babel/core@7.29.7)(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
+    devDependencies:
+      '@react-native/codegen':
+        specifier: 'catalog:'
+        version: 0.86.3(@babel/core@7.29.7)
+      nitrogen:
+        specifier: 'catalog:'
+        version: 0.37.1(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
+
   packages/react-native-nitro-refresh:
     dependencies:
       cn:
@@ -246,10 +292,10 @@ importers:
         version: 0.10.1(@babel/core@7.29.7)(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
     devDependencies:
       '@react-native/codegen':
-        specifier: 0.86.3
+        specifier: 'catalog:'
         version: 0.86.3(@babel/core@7.29.7)
       nitrogen:
-        specifier: 0.37.1
+        specifier: 'catalog:'
         version: 0.37.1(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
 
 packages:
@@ -6538,7 +6584,9 @@ snapshots:
       metro-runtime: 0.84.6
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@react-native/normalize-colors@0.74.89': {}
 
