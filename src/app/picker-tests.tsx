@@ -13,6 +13,9 @@ const STEP = 1;
 const SHORT_COUNT = 3;
 const LOG_LIMIT = 30;
 const OUT_OF_RANGE = 99;
+const DEFAULT_EDGE_SCALE = 0.6;
+const STRONG_EDGE_SCALE = 0.4;
+const NO_EDGE_SCALE = 1;
 const START_ACTION = {
   none: "none",
   unmount: "unmount",
@@ -44,6 +47,8 @@ export default function PickerTests() {
   const [visible, setVisible] = useState(true);
   const [large, setLarge] = useState(false);
   const [compact, setCompact] = useState(false);
+  const [enable3D, setEnable3D] = useState(true);
+  const [edgeScale, setEdgeScale] = useState(DEFAULT_EDGE_SCALE);
   const [linked, setLinked] = useState(false);
   const [renderCount, setRenderCount] = useState(0);
   const [logs, setLogs] = useState<string[]>([]);
@@ -99,6 +104,8 @@ export default function PickerTests() {
           testID="picker-tests-wheel"
           value={value}
           enabled={enabled}
+          enable3D={enable3D}
+          edgeScale={edgeScale}
           itemHeight={large ? 52 : 44}
           className={compact ? "h-[20px]" : large ? "h-[300px]" : "h-[220px]"}
           onPickStart={({ column }) => {
@@ -222,6 +229,19 @@ export default function PickerTests() {
         />
         <Action label="清空日志" onPress={() => setLogs([])} />
         <Action
+          label={enable3D ? "关闭立体" : "开启立体"}
+          onPress={() => setEnable3D(!enable3D)}
+        />
+        <Action
+          label="增强缩放"
+          onPress={() => setEdgeScale(STRONG_EDGE_SCALE)}
+        />
+        <Action
+          label="默认缩放"
+          onPress={() => setEdgeScale(DEFAULT_EDGE_SCALE)}
+        />
+        <Action label="关闭缩放" onPress={() => setEdgeScale(NO_EDGE_SCALE)} />
+        <Action
           label="滚动开始即卸载"
           onPress={() => setStartAction(START_ACTION.unmount)}
         />
@@ -234,6 +254,12 @@ export default function PickerTests() {
           onPress={() => setStartAction(START_ACTION.replace)}
         />
       </View>
+      <Text
+        testID="picker-tests-appearance"
+        className="text-sm text-slate-600 dark:text-slate-300"
+      >
+        立体：{enable3D ? "开启" : "关闭"} · 边缘缩放：{edgeScale}
+      </Text>
       <Text
         testID="picker-tests-start-action"
         className="text-sm text-slate-600 dark:text-slate-300"

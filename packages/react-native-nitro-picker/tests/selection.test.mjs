@@ -17,7 +17,49 @@ registerHooks({
 });
 const { normalizeIndex, optionArray, sameOptions } =
   await import("../src/selection.ts");
-const { selectionTop } = await import("../src/geometry.ts");
+const { selectionTop, wheelScale, validateEdgeScale } =
+  await import("../src/geometry.ts");
+const { DEFAULT_EDGE_SCALE } = await import("../src/defaults.ts");
+
+test("wheel rows shrink symmetrically towards both ends and retain center size", () => {
+  assert.equal(wheelScale(0, 110, DEFAULT_EDGE_SCALE), 1);
+  let previous = 1;
+  for (const distance of [11, 44, 88, 110, 150]) {
+    const scale = wheelScale(distance, 110, DEFAULT_EDGE_SCALE);
+    assert.equal(scale, wheelScale(-distance, 110, DEFAULT_EDGE_SCALE));
+    assert.ok(scale <= previous && scale >= DEFAULT_EDGE_SCALE);
+    previous = scale;
+  }
+  assert.equal(previous, DEFAULT_EDGE_SCALE);
+});
+
+test("edge scale is configurable, size independent, and can disable scaling", () => {
+  for (const radius of [10, 110, 150]) {
+    for (const edgeScale of [0.4, 0.6, 1]) {
+      assert.equal(wheelScale(0, radius, edgeScale), 1);
+      assert.ok(
+        Math.abs(wheelScale(radius, radius, edgeScale) - edgeScale) <
+          Number.EPSILON,
+      );
+      assert.equal(
+        wheelScale(radius / 2, radius, edgeScale),
+        (1 + edgeScale) / 2,
+      );
+    }
+    for (const distance of [-200, -44, 0, 44, 200]) {
+      assert.equal(wheelScale(distance, radius, 1), 1);
+    }
+  }
+});
+
+test("invalid edge scales fail instead of producing a broken projection", () => {
+  for (const value of [0, -0.1, 1.1, NaN, Infinity, -Infinity]) {
+    assert.throws(() => validateEdgeScale(value), /edgeScale/);
+  }
+  for (const value of [0.01, DEFAULT_EDGE_SCALE, 1]) {
+    assert.doesNotThrow(() => validateEdgeScale(value));
+  }
+});
 
 test("selection stays centered when the viewport is shorter than a row", () => {
   assert.equal(selectionTop(20, 44), -12);

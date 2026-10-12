@@ -15,6 +15,10 @@ export interface PickerViewProps {
   children?: ReactNode;
   itemHeight?: number;
   enabled?: boolean;
+  /** Enable cylindrical projection. Default: true. */
+  enable3D?: boolean;
+  /** Scale at the viewport edges, in (0, 1]. Default: 0.6; 1 disables scaling. */
+  edgeScale?: number;
   onChange?: (event: PickerChangeEvent) => void;
   onPickStart?: (event: PickerColumnEvent) => void;
   onPickEnd?: (event: PickerColumnEvent) => void;

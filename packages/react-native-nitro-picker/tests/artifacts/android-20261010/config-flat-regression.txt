@@ -1,0 +1,44 @@
+Warning: This version of UI Automator is deprecated. New tests should be written using
+UI Automator 2.0 which is available as part of the Android Testing Support Library.
+See https://developer.android.com/training/testing/ui-testing/uiautomator-testing.html
+for more details.
+INSTRUMENTATION_STATUS: numtests=2
+INSTRUMENTATION_STATUS: stream=
+PickerMulti:
+INSTRUMENTATION_STATUS: id=UiAutomatorTestRunner
+INSTRUMENTATION_STATUS: test=testAccessibilityAdjustments
+INSTRUMENTATION_STATUS: class=PickerMulti
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS_CODE: 1
+ACCESSIBILITY_INCREMENT=受控值 [1, 0] · 列项数 8/8 · 重渲染 0
+ACCESSIBILITY_DECREMENT=受控值 [0, 0] · 列项数 8/8 · 重渲染 0
+INSTRUMENTATION_STATUS: numtests=2
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: id=UiAutomatorTestRunner
+INSTRUMENTATION_STATUS: test=testAccessibilityAdjustments
+INSTRUMENTATION_STATUS: class=PickerMulti
+INSTRUMENTATION_STATUS: current=1
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: numtests=2
+INSTRUMENTATION_STATUS: stream=
+INSTRUMENTATION_STATUS: id=UiAutomatorTestRunner
+INSTRUMENTATION_STATUS: test=testSimultaneousColumns
+INSTRUMENTATION_STATUS: class=PickerMulti
+INSTRUMENTATION_STATUS: current=2
+INSTRUMENTATION_STATUS_CODE: 1
+SIMULTANEOUS_STATE=受控值 [4, 2] · 列项数 8/8 · 重渲染 0
+INSTRUMENTATION_STATUS: numtests=2
+INSTRUMENTATION_STATUS: stream=.
+INSTRUMENTATION_STATUS: id=UiAutomatorTestRunner
+INSTRUMENTATION_STATUS: test=testSimultaneousColumns
+INSTRUMENTATION_STATUS: class=PickerMulti
+INSTRUMENTATION_STATUS: current=2
+INSTRUMENTATION_STATUS_CODE: 0
+INSTRUMENTATION_STATUS: stream=
+Test results for WatcherResultPrinter=..
+Time: 10.556
+
+OK (2 tests)
+
+
+INSTRUMENTATION_STATUS_CODE: -1

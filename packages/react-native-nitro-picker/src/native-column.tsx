@@ -41,6 +41,8 @@ interface ColumnProps extends PickerViewColumnProps {
   selected: number;
   itemHeight: number;
   enabled: boolean;
+  enable3D: boolean;
+  edgeScale: number;
   onSelect: (index: number) => void;
   onStart: () => void;
   onEnd: () => void;
@@ -51,6 +53,8 @@ export function NativeColumn({
   selected,
   itemHeight,
   enabled,
+  enable3D,
+  edgeScale,
   className,
   style,
   accessibilityLabel,
@@ -247,6 +251,8 @@ export function NativeColumn({
           offset={offset}
           height={height}
           reducedMotion={reducedMotion}
+          enable3D={enable3D}
+          edgeScale={edgeScale}
         >
           {option}
         </WheelItem>

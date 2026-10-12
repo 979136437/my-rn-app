@@ -10,6 +10,7 @@ import {
   MIN_DIMENSION,
   PERSPECTIVE_RADIUS_FACTOR,
 } from "./defaults";
+import { wheelScale } from "./geometry";
 
 const FLAT_STYLE = {
   opacity: 1,
@@ -24,6 +25,8 @@ export function WheelItem({
   offset,
   height,
   reducedMotion,
+  enable3D,
+  edgeScale,
 }: {
   children: ReactNode;
   index: number;
@@ -31,6 +34,8 @@ export function WheelItem({
   offset: SharedValue<number>;
   height: SharedValue<number>;
   reducedMotion: SharedValue<boolean>;
+  enable3D: boolean;
+  edgeScale: number;
 }) {
   const animatedStyle = useAnimatedStyle(() => {
     if (reducedMotion.value || height.value <= MIN_DIMENSION) {
@@ -42,31 +47,33 @@ export function WheelItem({
     // Keep an identical transform while behind the cylinder. Reanimated's
     // shallow style comparison can then skip native updates for hidden rows.
     if (Math.abs(angle) >= MAX_VISIBLE_ANGLE) return HIDDEN_STYLE;
-    const cosine = Math.cos(angle);
-    const sine = Math.sin(angle);
+    const cosine = enable3D ? Math.cos(angle) : 1;
+    const sine = enable3D ? Math.sin(angle) : 0;
+    const scale = wheelScale(distance, height.value * HALF, edgeScale);
     const translationZ = radius * (cosine - 1);
     const perspective = radius * PERSPECTIVE_RADIUS_FACTOR;
-    const translationY =
-      radius * sine - distance * (1 - translationZ / perspective);
-    // Column-major P * T * Rx. Translate in depth as well as rotating each row
-    // so the centers follow a cylinder instead of a flat, tilted list.
+    const translationY = enable3D
+      ? radius * sine - distance * (1 - translationZ / perspective)
+      : 0;
+    // Column-major P * T * Rx * Sxy. Scale the content around its own center,
+    // preserving the cylinder's position and depth as rows shrink at the ends.
     return {
       opacity: 1,
       transform: [
         {
           matrix: [
-            1,
+            scale,
             0,
             0,
             0,
             0,
-            cosine,
-            -sine,
-            sine / perspective,
+            cosine * scale,
+            -sine * scale,
+            (sine * scale) / perspective,
             0,
             sine,
             cosine,
-            -cosine / perspective,
+            enable3D ? -cosine / perspective : 0,
             0,
             translationY,
             translationZ,

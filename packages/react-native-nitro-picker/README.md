@@ -38,6 +38,13 @@ export function SeasonPicker() {
 
 默认背景与遮罩适配白色 / slate-950 深色主题。修改背景时，使用 `maskColors={[opaqueColor, transparentColor]}` 同步设置上下渐隐颜色。原生滚动事件仅连接 UI worklet，应用层没有逐帧事件。
 
+默认选中框为圆角浅色底，位于选项下方。中心项保持原尺寸，上下选项按距中心的距离平滑缩小，并保持图文整体缩放；缩放不改变行高、选项中心和吸附位置。减少动态效果开启时取消立体投影和两端缩放。
+
+- `enable3D`：默认 `true`，设为 `false` 关闭圆柱投影，使用平面滚轮；两端缩放仍可独立使用。
+- `edgeScale`：默认 `0.6`，必须是 `(0, 1]` 内的有限数。越小缩放越明显，设为 `1` 关闭额外缩放。开启立体时，透视和旋转本身仍会压缩远处选项；完全平面且不缩放可用 `enable3D={false} edgeScale={1}`。
+
+例如 `<PickerView value={value} enable3D={false} edgeScale={0.4}>...</PickerView>` 为平面滚动并保留明显的两端缩放。这两个属性可在运行时更新，不改变受控选中值或发出选择事件。
+
 `PickerViewColumn` 必须是直接子项，每个非空 React 子元素算一项；片段作为一个选项内容。裸文本需要放入 `Text`。使用稳定且唯一的选项 key；选项允许图文布局，但内部交互被禁用，整列负责滚动。列支持 `className` / `style`、`accessibilityLabel`、`accessibilityValueText`、`testID`。全部选项使用统一行高，内容应在槽内排版。
 
 - `onPickStart({ column })`：用户开始拖动或使用辅助功能调整。

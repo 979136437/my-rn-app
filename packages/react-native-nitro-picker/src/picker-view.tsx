@@ -13,13 +13,14 @@ import { Platform, View } from "react-native";
 import {
   DEFAULT_ITEM_HEIGHT,
   DEFAULT_VIEW_HEIGHT,
+  DEFAULT_EDGE_SCALE,
   RECONCILE_STEP,
   MASK_COLORS,
   MIN_DIMENSION,
   SUPPORTED_PLATFORMS,
 } from "./defaults";
 import { NativeColumn } from "./native-column";
-import { selectionTop } from "./geometry";
+import { selectionTop, validateEdgeScale } from "./geometry";
 import { normalizeIndex, optionArray } from "./selection";
 import type { PickerViewColumnProps, PickerViewProps } from "./types";
 
@@ -35,6 +36,8 @@ export function PickerView({
   children,
   itemHeight = DEFAULT_ITEM_HEIGHT,
   enabled = true,
+  enable3D = true,
+  edgeScale = DEFAULT_EDGE_SCALE,
   onChange,
   onPickStart,
   onPickEnd,
@@ -53,6 +56,7 @@ export function PickerView({
   if (!Number.isFinite(itemHeight) || itemHeight <= MIN_DIMENSION) {
     throw new Error("PickerView itemHeight must be a positive finite number.");
   }
+  validateEdgeScale(edgeScale);
   // Validate even surplus entries rather than silently accepting invalid input.
   value.forEach((index) => normalizeIndex(index, value.length));
   const columns = Children.toArray(children).map((child) => {
@@ -81,18 +85,28 @@ export function PickerView({
     <View
       testID={testID}
       className={cn(
-        "relative h-[220px] flex-row overflow-hidden bg-white dark:bg-slate-950",
+        "relative h-[220px] flex-row overflow-hidden rounded-2xl bg-white dark:bg-slate-950",
         className,
       )}
       style={style}
       onLayout={(event) => setHeight(event.nativeEvent.layout.height)}
     >
+      <View
+        pointerEvents="none"
+        className={cn(
+          "absolute left-3 right-3 rounded-xl bg-slate-100 dark:bg-slate-800",
+          indicatorClassName,
+        )}
+        style={[indicatorStyle, { top: indicatorTop, height: itemHeight }]}
+      />
       {columns.map((column, columnIndex) => (
         <NativeColumn
           key={column.key ?? columnIndex}
           {...column.props}
           itemHeight={itemHeight}
           enabled={enabled}
+          enable3D={enable3D}
+          edgeScale={edgeScale}
           selected={selection[columnIndex]}
           onStart={() => onPickStart?.({ column: columnIndex })}
           onEnd={() => onPickEnd?.({ column: columnIndex })}
@@ -110,14 +124,6 @@ export function PickerView({
           }}
         />
       ))}
-      <View
-        pointerEvents="none"
-        className={cn(
-          "absolute left-0 right-0 border-y border-slate-300 dark:border-slate-700",
-          indicatorClassName,
-        )}
-        style={[indicatorStyle, { top: indicatorTop, height: itemHeight }]}
-      />
       <View
         pointerEvents="none"
         className={cn("absolute inset-0", maskClassName)}
