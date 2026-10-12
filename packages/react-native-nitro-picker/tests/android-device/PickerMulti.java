@@ -53,4 +53,30 @@ public class PickerMulti extends UiAutomatorTestCase {
     assertTrue("Right column changed", Integer.parseInt(match.group(2)) > 0);
     getUiDevice().takeScreenshot(new File("/sdcard/codex-picker-multi.png"));
   }
+  public void testRepeatedMountUnmount() throws Exception {
+    UiObject wheel = new UiObject(new UiSelector().resourceId("picker-tests-wheel"));
+    for (int iteration = 0; iteration < 5; iteration++) {
+      new UiObject(new UiSelector().text("卸载")).click();
+      assertTrue("Column containers detached", wheel.waitUntilGone(3000));
+      new UiObject(new UiSelector().text("重新挂载")).click();
+      assertTrue("Column containers reattached", wheel.waitForExists(3000));
+      new UiObject(new UiSelector().text("程序选末项")).click();
+      String state = new UiObject(new UiSelector().resourceId("picker-tests-controlled")).getText();
+      assertTrue("Reattached columns accept selection", state.contains("[7, 7]"));
+      System.out.println("MOUNT_UNMOUNT_PASS=" + iteration);
+    }
+  }
+  public void testRepeatedSurfaceReload() throws Exception {
+    for (int iteration = 0; iteration < 3; iteration++) {
+      new UiObject(new UiSelector().text("反转顺序")).click();
+      getUiDevice().pressMenu();
+      new UiObject(new UiSelector().text("Reload")).click();
+      UiObject entry = new UiObject(new UiSelector().text("立体选择器测试"));
+      assertTrue("Reload returns to home without crashing", entry.waitForExists(10000));
+      entry.click();
+      UiObject wheel = new UiObject(new UiSelector().resourceId("picker-tests-wheel"));
+      assertTrue("Picker survives a new Fabric surface", wheel.waitForExists(5000));
+      System.out.println("SURFACE_RELOAD_PASS=" + iteration);
+    }
+  }
 }

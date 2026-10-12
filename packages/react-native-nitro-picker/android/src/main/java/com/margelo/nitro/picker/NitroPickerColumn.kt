@@ -118,7 +118,7 @@ internal class NitroPickerColumn(private val reactContext: ThemedReactContext) :
   }
   private val layoutWork = Runnable {
     layoutQueued = false
-    if (!released && width > 0 && height > 0) {
+    if (!released && isAttachedToWindow && width > 0 && height > 0) {
       measure(MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY))
       layout(left, top, right, bottom)
       layoutRows()
@@ -231,10 +231,22 @@ internal class NitroPickerColumn(private val reactContext: ThemedReactContext) :
     super.requestLayout()
     // React Native's root has already laid out this native container. Schedule
     // one layout pass for RecyclerView, never a timer or animation loop.
-    if (ready && !layoutQueued && !released) {
+    if (ready && isAttachedToWindow && !layoutQueued && !released) {
       layoutQueued = true
       post(layoutWork)
     }
+  }
+  override fun onAttachedToWindow() {
+    super.onAttachedToWindow()
+    requestLayout()
+  }
+  override fun onDetachedFromWindow() {
+    // Fabric may detach the surface before dropping its view instances. A
+    // posted layout must not run against RecyclerView's detached scrap hosts.
+    removeCallbacks(layoutWork)
+    layoutQueued = false
+    cancelPicking(true)
+    super.onDetachedFromWindow()
   }
   override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
     if (changed) {
@@ -244,7 +256,7 @@ internal class NitroPickerColumn(private val reactContext: ThemedReactContext) :
     layoutRows()
   }
   private fun layoutRows() {
-    if (released || recycler.isComputingLayout || width <= 0 || height <= 0) return
+    if (released || !isAttachedToWindow || recycler.isComputingLayout || width <= 0 || height <= 0) return
     // Signed padding keeps the row and SnapHelper centered even when the
     // physical viewport is shorter than a row. Preserve the pixel remainder.
     val padding = height / 2 - itemHeightPx / 2

@@ -1,0 +1,3 @@
+PID=24838
+Command: adb logcat -d -b crash --pid=<PID>
+Output lines=0
